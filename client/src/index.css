@@ -1,0 +1,196 @@
+@import "tailwindcss";
+
+/* Toast Notification Styles */
+.toast-notification {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  padding: 15px 25px;
+  border-radius: 5px;
+  color: white;
+  z-index: 1000;
+  animation: slideIn 0.3s ease-out;
+}
+
+.toast-notification.success {
+  background-color: #4CAF50;
+}
+
+.toast-notification.error {
+  background-color: #F44336;
+}
+
+.toast-notification.info {
+  background-color: #2196F3;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateY(100px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+
+:root {
+  /* Color Variables */
+  --color-primary: #3B82F6;     /* Royal Blue */
+  --color-primary-hover: #2563EB;
+  --color-primary-focus: #93C5FD;
+  --color-secondary: #64748B;   /* Slate Gray */
+  --color-secondary-hover: #475569;
+  --color-accent: #10B981;      /* Emerald Green */
+  --color-warning: #F59E0B;     /* Amber */
+  --color-error: #EF4444;       /* Rose Red */
+  --color-bg-light: #F9FAFB;    /* Light Background */
+  --color-surface: #FFFFFF;     /* Pure White */
+  --color-text-main: #1F2937;   /* Charcoal Gray */
+  --color-text-muted: #6B7280;  /* Cool Gray */
+
+  /* Font Variables */
+  --font-primary: 'Inter', sans-serif;
+  --font-secondary: 'Roboto', sans-serif;
+}
+
+/* === Base Styles === */
+body {
+  font-family: var(--font-primary);
+  background-color: var(--color-bg-light);
+  color: var(--color-text-main);
+}
+
+/* === Button Utilities === */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-primary {
+  padding: 0.5rem 1rem;
+  border-radius: 0.25rem;
+  color: white;
+  background-color: var(--color-primary);
+}
+
+.btn-primary:hover {
+  background-color: var(--color-primary-hover);
+}
+
+.btn-primary:focus {
+  outline: 2px solid var(--color-primary-focus);
+  outline-offset: 2px;
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  padding: 0.5rem 1rem;
+  border-radius: 0.25rem;
+  color: white;
+  background-color: var(--color-secondary);
+}
+
+.btn-secondary:hover {
+  background-color: var(--color-secondary-hover);
+}
+
+.btn-secondary:focus {
+  outline: 2px solid #E2E8F0;
+  outline-offset: 2px;
+}
+
+.btn-secondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Button Sizes */
+.btn-sm {
+  padding: 0.25rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+.btn-lg {
+  padding: 0.75rem 1.5rem;
+  font-size: 1.125rem;
+}
+
+/* === Text Utilities === */
+.text-muted {
+  color: var(--color-text-muted);
+}
+
+.text-primary {
+  color: var(--color-primary);
+}
+
+.text-accent {
+  color: var(--color-accent);
+}
+
+.text-warning {
+  color: var(--color-warning);
+}
+
+.text-error {
+  color: var(--color-error);
+}
+
+/* === Background Utilities === */
+.bg-surface {
+  background-color: var(--color-surface);
+}
+
+.bg-primary {
+  background-color: var(--color-primary);
+}
+
+.bg-accent {
+  background-color: var(--color-accent);
+}
+
+/* === Font Utilities === */
+.font-primary {
+  font-family: var(--font-primary);
+}
+
+.font-secondary {
+  font-family: var(--font-secondary);
+}
+
+/* === Shadow Utilities === */
+.shadow-sm {
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.shadow-md {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* === Focus States (Accessibility) === */
+.focus-ring {
+  outline: 2px solid var(--color-primary-focus);
+  outline-offset: 2px;
+}
+
+/* === Disabled State === */
+.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+button, input{
+  cursor: pointer;
+}
