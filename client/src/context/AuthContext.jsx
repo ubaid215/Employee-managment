@@ -1,199 +1,160 @@
-/* eslint-disable no-unused-vars */
-import { createContext, useContext, useState, useEffect } from 'react';
-import * as authService from '../services/authService'; // Import your auth service
+/* eslint-disable react-refresh/only-export-components */
+import { createContext, useContext, useEffect, useState } from 'react';
+import { authService, employeeService } from '../services/apiServices';
 
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [loading, setLoading] = useState(true); // Start with true to check auth status
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
 
-  // Check authentication status on mount
+  // Initialize auth state and fetch profile
   useEffect(() => {
-    const checkAuthStatus = async () => {
-      setLoading(true);
+    const initializeAuth = async () => {
       try {
-        const response = await authService.checkAuthStatus();
-        setUser(response.data.user);
-        setIsAuthenticated(true);
+        const token = localStorage.getItem('token');
+        if (token) {
+          await fetchProfile();
+        }
       } catch (err) {
-        setUser(null);
-        setIsAuthenticated(false);
-        // Don't set error here as user might not be logged in
+        handleAuthError(err);
       } finally {
         setLoading(false);
       }
     };
 
-    checkAuthStatus();
+    initializeAuth();
   }, []);
 
-  // Clear error when it's shown
-  const clearError = () => setError(null);
-
-  // Login function
-  const login = async (email, password) => {
-    setLoading(true);
-    setError(null);
+  // Fetch user profile using /me endpoint
+  const fetchProfile = async () => {
     try {
-      const response = await authService.login(email, password);
-      setUser(response.data.user);
-      setIsAuthenticated(true);
-      return response;
+      const { data } = await employeeService.getProfile();
+      setUser(data.employee);
+      setError(null);
+      return data.employee;
     } catch (err) {
-      const errorMessage = err.message || 'Login failed';
-      setError(errorMessage);
-      setUser(null);
-      setIsAuthenticated(false);
-      throw new Error(errorMessage);
-    } finally {
-      setLoading(false);
+      handleAuthError(err);
+      throw err;
     }
   };
 
-  // Register function
-  const register = async (userData) => {
-    setLoading(true);
-    setError(null);
+  // Handle authentication errors
+  const handleAuthError = (err) => {
+    console.error('Auth error:', err);
+    const errorMessage = err.response?.data?.message || 
+                        err.message || 
+                        'Authentication failed';
+    setError(errorMessage);
+    localStorage.removeItem('token');
+    setUser(null);
+    return errorMessage;
+  };
+
+  // Login function
+  const login = async (email, password) => {
+    setIsAuthenticating(true);
     try {
-      const response = await authService.register(userData);
-      setUser(response.data.user);
-      setIsAuthenticated(true);
-      return response;
+      const { data } = await authService.login({ email, password });
+      localStorage.setItem('token', data.token);
+      const profile = await fetchProfile();
+      return profile;
     } catch (err) {
-      const errorMessage = err.message || 'Registration failed';
-      setError(errorMessage);
-      setUser(null);
-      setIsAuthenticated(false);
-      throw new Error(errorMessage);
+      const message = handleAuthError(err);
+      throw new Error(message);
     } finally {
-      setLoading(false);
+      setIsAuthenticating(false);
     }
   };
 
   // Logout function
   const logout = async () => {
-    setLoading(true);
     try {
       await authService.logout();
     } catch (err) {
-      // Log error but still clear local state
-      console.warn('Logout request failed:', err.message);
+      console.error('Logout error:', err);
     } finally {
-      // Always clear local state regardless of server response
+      localStorage.removeItem('token');
       setUser(null);
-      setIsAuthenticated(false);
       setError(null);
-      setLoading(false);
-    }
-  };
-
-  // Forgot password
-  const forgotPassword = async (email) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await authService.forgotPassword(email);
-      return response;
-    } catch (err) {
-      const errorMessage = err.message || 'Error sending reset email';
-      setError(errorMessage);
-      throw new Error(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Reset password
-  const resetPassword = async (token, password, passwordConfirm) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await authService.resetPassword(token, password, passwordConfirm);
-      setUser(response.data.user);
-      setIsAuthenticated(true);
-      return response;
-    } catch (err) {
-      const errorMessage = err.message || 'Error resetting password';
-      setError(errorMessage);
-      throw new Error(errorMessage);
-    } finally {
-      setLoading(false);
     }
   };
 
   // Update password
-  const updatePassword = async (currentPassword, password, passwordConfirm) => {
-    setLoading(true);
-    setError(null);
+  const updatePassword = async (currentPassword, newPassword) => {
     try {
-      const response = await authService.updatePassword(currentPassword, password, passwordConfirm);
-      setUser(response.data.user);
-      return response;
+      await authService.updatePassword(currentPassword, newPassword);
+      // Re-fetch profile after password change
+      await fetchProfile();
     } catch (err) {
-      const errorMessage = err.message || 'Error updating password';
-      setError(errorMessage);
-      throw new Error(errorMessage);
-    } finally {
-      setLoading(false);
+      const message = handleAuthError(err);
+      throw new Error(message);
     }
   };
 
   // Update email
   const updateEmail = async (newEmail, password) => {
-    setLoading(true);
-    setError(null);
     try {
-      const response = await authService.updateEmail(newEmail, password);
-      setUser(response.data.user);
-      return response;
+      await authService.updateEmail(newEmail, password);
+      // Re-fetch profile after email change
+      await fetchProfile();
     } catch (err) {
-      const errorMessage = err.message || 'Error updating email';
-      setError(errorMessage);
-      throw new Error(errorMessage);
-    } finally {
-      setLoading(false);
+      const message = handleAuthError(err);
+      throw new Error(message);
     }
   };
 
-  // Refresh user data
-  const refreshUser = async () => {
+  // Password reset
+  const resetPassword = async (token, passwords) => {
     try {
-      const response = await authService.checkAuthStatus();
-      setUser(response.data.user);
-      setIsAuthenticated(true);
-      return response.data.user;
+      await authService.resetPassword(token, passwords);
     } catch (err) {
-      setUser(null);
-      setIsAuthenticated(false);
-      throw err;
+      const message = handleAuthError(err);
+      throw new Error(message);
     }
+  };
+
+  // Forgot password
+  const forgotPassword = async (email) => {
+    try {
+      await authService.forgotPassword(email);
+    } catch (err) {
+      const message = handleAuthError(err);
+      throw new Error(message);
+    }
+  };
+
+  // Check authentication status
+  const isAuthenticated = () => {
+    return !!user && !!localStorage.getItem('token');
+  };
+
+  // Check admin status
+  const isAdmin = () => {
+    return isAuthenticated() && user?.role === 'admin';
   };
 
   const value = {
-    // State
     user,
-    isAuthenticated,
     loading,
     error,
-    
-    // Actions
+    isAuthenticating,
     login,
-    register,
     logout,
-    forgotPassword,
-    resetPassword,
     updatePassword,
     updateEmail,
-    refreshUser,
-    clearError,
+    resetPassword,
+    forgotPassword,
+    fetchProfile,
+    isAuthenticated: isAuthenticated(),
+    isAdmin: isAdmin()
   };
 
   return (
     <AuthContext.Provider value={value}>
-      {children}
+      {!loading && children}
     </AuthContext.Provider>
   );
 };
@@ -204,23 +165,4 @@ export const useAuth = () => {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
-};
-
-// Higher-order component for protected routes
-export const withAuth = (Component) => {
-  return function AuthenticatedComponent(props) {
-    const { isAuthenticated, loading } = useAuth();
-    
-    if (loading) {
-      return <div>Loading...</div>; // Or your loading component
-    }
-    
-    if (!isAuthenticated) {
-      // Redirect to login or show unauthorized message
-      window.location.href = '/login';
-      return null;
-    }
-    
-    return <Component {...props} />;
-  };
 };

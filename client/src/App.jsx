@@ -1,42 +1,41 @@
-import React from "react";
-import Header from "./components/Header";
-import Sidebar from "./components/Sidebar";
-import MobileBottomNav from "./components/MobileBottomNav";
-import RealTimeUpdates from "./components/RealTimeUpdates";
-import Router from "./router/Router";
-import { AuthProvider } from "./context/AuthContext";
-import { UserProvider } from "./context/UserContext";
-import { DutyProvider } from "./context/DutyContext";
-import { LeaveProvider } from "./context/LeaveContext";
-import { SalaryProvider } from "./context/SalaryContext";
-import { SocketProvider } from "./context/SocketContext";
+import React from 'react';
+import { BrowserRouter } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import { EmployeeProvider } from './context/EmployeeContext';
+import { AdminProvider } from './context/AdminContext';
+import Router from './router/Router';
+import { SocketProvider } from './context/SocketContext';
+import { Toaster } from 'react-hot-toast';
 
-const App = () => {
+function App() {
   return (
-    <AuthProvider>
-      <UserProvider>
-        <DutyProvider>
-          <LeaveProvider>
-            <SocketProvider>
-              <SalaryProvider>
-                <div className="flex flex-col min-h-screen bg-bg-light font-primary">
-                  <Header /> {/* Replaced Navbar with Header */}
-                  <div className="flex flex-1">
-                    <Sidebar />
-                    <main className="flex-1 p-4 md:ml-64">
-                      <Router />
-                    </main>
-                  </div>
-                  <MobileBottomNav />
-                  <RealTimeUpdates />
-                </div>
-              </SalaryProvider>
-            </SocketProvider>
-          </LeaveProvider>
-        </DutyProvider>
-      </UserProvider>
-    </AuthProvider>
+    <BrowserRouter>
+      <AuthProvider>
+        <SocketProvider>
+          <EmployeeProvider>
+            <AdminProvider>
+              <div className="App">
+                <Toaster 
+                  position="top-center"
+                  toastOptions={{
+                    duration: 5000,
+                    style: {
+                      background: '#fff',
+                      color: '#374151',
+                      boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+                      borderRadius: '0.5rem',
+                      padding: '1rem'
+                    }
+                  }}
+                />
+                <Router />
+              </div>
+            </AdminProvider>
+          </EmployeeProvider>
+        </SocketProvider>
+      </AuthProvider>
+    </BrowserRouter>
   );
-};
+}
 
 export default App;

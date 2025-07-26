@@ -147,37 +147,125 @@ exports.getDuties = async (req, res) => {
 // Submit task for a duty
 exports.submitTask = async (req, res, next) => {
   try {
-    const { dutyId, formData } = req.body;
-    
-    // Check if duty is assigned to user
-    const user = await User.findById(req.user.id);
+    const { dutyId, formData, forceNew = false } = req.body;
+    const employeeId = req.user.id;
+
+    // 1. Validate duty assignment
+    const user = await User.findById(employeeId).populate('department');
     if (!user.duties.includes(dutyId)) {
       return next(new AppError('You are not assigned this duty', 403));
     }
-    
-    // Create task log
-    const task = await TaskLog.create({
-      employee: req.user.id,
-      duty: dutyId,
-      data: formData,
-      submittedAt: new Date()
-    });
-    
-    // Populate for real-time event
+
+    // 2. Check for existing task today (unless forcing new)
+    let existingTask;
+    if (!forceNew) {
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const todayEnd = new Date();
+      todayEnd.setHours(23, 59, 59, 999);
+
+      existingTask = await TaskLog.findOne({
+        employee: employeeId,
+        duty: dutyId,
+        createdAt: { $gte: todayStart, $lte: todayEnd },
+        allowUpdates: true
+      });
+    }
+
+    // 3. Handle update or create
+    let task;
+    if (existingTask && !forceNew) {
+      // Update existing task
+      existingTask.data = formData;
+      existingTask.submittedAt = new Date();
+      task = await existingTask.save();
+      
+      // Real-time update for specific admin channels
+      req.io.to(`admin-department-${user.department._id}`).emit('task-updated', {
+        type: 'TASK_UPDATED',
+        employeeId,
+        task: await TaskLog.findById(task._id)
+          .populate('employee duty department reviewedBy')
+      });
+
+    } else {
+      // Check if there's a reviewed task
+      const reviewedTask = await TaskLog.findOne({
+        employee: employeeId,
+        duty: dutyId,
+        allowUpdates: false,
+        createdAt: { 
+          $gte: new Date().setHours(0, 0, 0, 0),
+          $lte: new Date().setHours(23, 59, 59, 999)
+        }
+      });
+
+      if (reviewedTask && !forceNew) {
+        // Notify admin that employee tried to modify reviewed task
+        req.io.to(`admin-department-${user.department._id}`).emit('task-modification-attempt', {
+          type: 'MODIFICATION_ATTEMPT',
+          employeeId,
+          taskId: reviewedTask._id,
+          attemptedAt: new Date()
+        });
+
+        return res.status(400).json({
+          status: 'fail',
+          message: 'This task was already reviewed. Add "forceNew": true to create new entry.',
+          reviewedTask: reviewedTask
+        });
+      }
+
+      // Create new task
+      task = await TaskLog.create({
+        employee: employeeId,
+        duty: dutyId,
+        department: user.department._id,
+        data: formData,
+        submittedAt: new Date(),
+        allowUpdates: true
+      });
+
+      // Real-time notification to relevant admins
+      req.io.to(`admin-department-${user.department._id}`).emit('new-duty', {
+        type: 'NEW_TASK',
+        employeeId,
+        task: await TaskLog.findById(task._id)
+          .populate('employee duty department')
+      });
+
+      // Notify employee's own socket room
+      req.io.to(`employee-${employeeId}`).emit('task-submitted', {
+        type: 'SUBMISSION_CONFIRMED',
+        taskId: task._id
+      });
+    }
+
+    // Prepare response data
     const populatedTask = await TaskLog.findById(task._id)
-      .populate('employee', 'name')
-      .populate('duty', 'title');
+      .populate('employee duty department reviewedBy');
 
-    // Emit real-time update to admin room
-    req.io.to('admin-room').emit('new-duty', populatedTask);
-
-    res.status(201).json({ 
+    return res.status(existingTask ? 200 : 201).json({
       status: 'success',
-      message: 'Task submitted successfully',
-      task: populatedTask
+      message: existingTask 
+        ? 'Task updated successfully' 
+        : forceNew 
+          ? 'New task entry created' 
+          : 'Task submitted successfully',
+      task: populatedTask,
+      socketEvent: existingTask ? 'task-updated' : 'new-duty'
     });
-    
+
   } catch (error) {
+    // Notify admins of submission errors
+    if (req.user?.department) {
+      req.io.to(`admin-department-${req.user.department._id}`).emit('task-error', {
+        type: 'SUBMISSION_ERROR',
+        employeeId: req.user._id,
+        error: error.message,
+        timestamp: new Date()
+      });
+    }
     next(error);
   }
 };
@@ -477,5 +565,26 @@ exports.getAllDuties = async (req, res) => {
     res.status(200).json(duties);
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// duty history
+exports.getMyDutyHistory = async (req, res, next) => {
+  try {
+    const tasks = await TaskLog.find({ 
+      employee: req.user.id 
+    })
+      .sort({ createdAt: -1 })
+      .populate('duty', 'title description')
+      .populate('department', 'name')
+      .populate('reviewedBy', 'name');
+
+    res.status(200).json({
+      status: 'success',
+      results: tasks.length,
+      data: tasks
+    });
+  } catch (error) {
+    next(error);
   }
 };

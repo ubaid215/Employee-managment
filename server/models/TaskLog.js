@@ -12,6 +12,11 @@ const taskLogSchema = new mongoose.Schema({
     ref: 'Duty',
     required: [true, 'Task must be associated with a duty']
   },
+  department: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Department',
+    required: [true, 'Task must belong to a department']
+  },
   data: {
     type: mongoose.Schema.Types.Mixed,
     required: [true, 'Task data is required']
@@ -22,7 +27,7 @@ const taskLogSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'approved', 'rejected'],
+    enum: ['pending', 'approved', 'rejected', 'needs_revision'],
     default: 'pending'
   },
   reviewedBy: {
@@ -30,7 +35,11 @@ const taskLogSchema = new mongoose.Schema({
     ref: 'User'
   },
   reviewedAt: Date,
-  feedback: String
+  feedback: String,
+  allowUpdates: {
+    type: Boolean,
+    default: true
+  }
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
@@ -40,8 +49,18 @@ const taskLogSchema = new mongoose.Schema({
 // Indexes for better query performance
 taskLogSchema.index({ employee: 1 });
 taskLogSchema.index({ duty: 1 });
+taskLogSchema.index({ department: 1 });
 taskLogSchema.index({ submittedAt: -1 });
 taskLogSchema.index({ status: 1 });
+taskLogSchema.index({ allowUpdates: 1 });
+
+// Compound index for finding updatable tasks
+taskLogSchema.index({ 
+  employee: 1,
+  duty: 1,
+  allowUpdates: 1,
+  status: 1
+});
 
 // Middleware to populate employee and duty when querying
 taskLogSchema.pre(/^find/, function(next) {
@@ -51,6 +70,9 @@ taskLogSchema.pre(/^find/, function(next) {
   }).populate({
     path: 'duty',
     select: 'title description'
+  }).populate({
+    path: 'department',
+    select: 'name'
   });
   next();
 });
@@ -59,13 +81,32 @@ taskLogSchema.pre(/^find/, function(next) {
 taskLogSchema.statics.getStatsByEmployee = async function(employeeId) {
   const stats = await this.aggregate([
     {
-      $match: { employee: employeeId }
+      $match: { employee: mongoose.Types.ObjectId(employeeId) }
     },
     {
       $group: {
         _id: '$status',
         count: { $sum: 1 },
-        lastSubmission: { $max: '$submittedAt' }
+        lastSubmission: { $max: '$submittedAt' },
+        // Add average completion time for approved tasks
+        avgCompletionTime: {
+          $avg: {
+            $cond: [
+              { $eq: ['$status', 'approved'] },
+              { $subtract: ['$reviewedAt', '$submittedAt'] },
+              null
+            ]
+          }
+        }
+      }
+    },
+    {
+      $project: {
+        status: '$_id',
+        count: 1,
+        lastSubmission: 1,
+        avgCompletionTime: 1,
+        _id: 0
       }
     }
   ]);
@@ -75,17 +116,40 @@ taskLogSchema.statics.getStatsByEmployee = async function(employeeId) {
 
 // Instance method to approve/reject task
 taskLogSchema.methods.updateStatus = async function(status, userId, feedback = '') {
-  if (!['approved', 'rejected'].includes(status)) {
-    throw new AppError('Invalid status. Must be either "approved" or "rejected"', 400);
+  if (!['approved', 'rejected', 'needs_revision'].includes(status)) {
+    throw new AppError('Invalid status. Must be either "approved", "rejected", or "needs_revision"', 400);
   }
 
   this.status = status;
   this.reviewedBy = userId;
   this.reviewedAt = new Date();
   this.feedback = feedback;
-
+  
+  // Lock task unless it needs revision
+  this.allowUpdates = status === 'needs_revision';
+  
   await this.save();
   return this;
+};
+
+// Static method to find updatable tasks
+taskLogSchema.statics.findUpdatableTask = async function(employeeId, dutyId) {
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+  
+  const endOfDay = new Date();
+  endOfDay.setHours(23, 59, 59, 999);
+
+  return this.findOne({
+    employee: employeeId,
+    duty: dutyId,
+    allowUpdates: true,
+    status: 'pending',
+    submittedAt: {
+      $gte: startOfDay,
+      $lte: endOfDay
+    }
+  });
 };
 
 const TaskLog = mongoose.model('TaskLog', taskLogSchema);

@@ -45,13 +45,13 @@ passwordResetExpires: Date,
     type: String,
     enum: ['admin', 'employee'],
     default: 'employee',
-    index: true // ✅ Added for role-based queries
+    index: true 
   },
   status: {
     type: String,
     enum: ['pending', 'active', 'suspended', 'on_leave'],
     default: 'pending',
-    index: true // ✅ Added for status filtering
+    index: true 
   },
   department: {
     type: mongoose.Schema.Types.ObjectId,

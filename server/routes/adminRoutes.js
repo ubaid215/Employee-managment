@@ -15,21 +15,24 @@ const {
   approveLeave,
   getAllEmployees,
   addSalary,
-  getAdminLeaveAnalytics
+  getAdminLeaveAnalytics,
+  getAllSalaries,
+  updateSalary,
+  getEmployee
 } = require('../controllers/adminController');
 const { protect, isAdmin } = require('../middlewares/authMiddleware');
 
-// All routes protected and admin-only
 router.use(protect, isAdmin);
 
 // Department management
-router.post('/departments', createDepartment); 
+router.post('/departments', createDepartment);
 router.post('/duties', createDuty);
 
 // Employee management
+router.get('/employees', getAllEmployees);
+router.get('/employees/:id', getEmployee);
 router.post('/assign-duty', assignDepartmentAndDuties);
 router.patch('/change-status', changeStatus);
-router.get('/employees', getAllEmployees);
 
 // Task management
 router.get('/employee-tasks', viewEmployeeTasks);
@@ -39,14 +42,16 @@ router.get('/employees/:employeeId/task-stats', getEmployeeTaskStats);
 // History tracking
 router.get('/department-history/:id', viewDepartmentHistory);
 
-// Add these routes
+// Leave management
 router.get('/leaves', getAllLeaves);
 router.get('/leaves/analytics', getLeaveAnalytics);
-router.get('/leaves/:id', getLeaveById);       // GET /api/admin/leaves/:id
-router.patch('/leaves/approve', approveLeave); // PATCH /api/admin/leaves/approve
+router.get('/leaves/:id', getLeaveById);
+router.patch('/leaves/:id', approveLeave);
 router.get('/leaves/advanced-analytics', getAdminLeaveAnalytics);
 
 // Salary management
-router.post('/add-salary', addSalary);
+router.get('/salaries', getAllSalaries);
+router.post('/salaries', addSalary);
+router.patch('/salaries/:id', updateSalary);
 
 module.exports = router;

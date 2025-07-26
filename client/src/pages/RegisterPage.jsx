@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Eye, EyeOff, Mail, Lock, User, Phone, CreditCard, AlertCircle, Loader2, UserPlus } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, User, Phone, CreditCard, AlertCircle, Loader2 } from 'lucide-react';
 
 const RegisterPage = () => {
   const [formData, setFormData] = useState({
@@ -10,15 +10,24 @@ const RegisterPage = () => {
     password: '',
     passwordConfirm: '',
     phone: '',
-    cnic: ''
+    employeeId: '',
+    department: ''
   });
   const [showPassword, setShowPassword] = useState(false);
-  const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
-  const [localError, setLocalError] = useState('');
   const [validationErrors, setValidationErrors] = useState({});
   
-  const { register, isLoading, error, clearError } = useAuth();
+  const { register, loading, error } = useAuth();
   const navigate = useNavigate();
+
+  const departments = [
+    'Human Resources',
+    'Engineering',
+    'Marketing',
+    'Sales',
+    'Operations',
+    'Finance',
+    'Customer Support'
+  ];
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -27,371 +36,304 @@ const RegisterPage = () => {
       [name]: value
     }));
     
+    // Clear validation error when user types
     if (validationErrors[name]) {
       setValidationErrors(prev => ({
         ...prev,
         [name]: ''
       }));
     }
-    
-    if (localError) setLocalError('');
-    if (error) clearError();
   };
 
   const validateForm = () => {
     const errors = {};
+    let isValid = true;
 
     if (!formData.name.trim()) {
-      errors.name = 'Name is required';
-    } else if (formData.name.trim().length < 2) {
-      errors.name = 'Name must be at least 2 characters';
+      errors.name = 'Full name is required';
+      isValid = false;
     }
 
     if (!formData.email) {
       errors.email = 'Email is required';
+      isValid = false;
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      errors.email = 'Please enter a valid email address';
+      errors.email = 'Invalid email format';
+      isValid = false;
     }
 
     if (!formData.password) {
       errors.password = 'Password is required';
-    } else if (formData.password.length < 6) {
-      errors.password = 'Password must be at least 6 characters';
+      isValid = false;
+    } else if (formData.password.length < 8) {
+      errors.password = 'Password must be 8+ characters';
+      isValid = false;
     }
 
-    if (!formData.passwordConfirm) {
-      errors.passwordConfirm = 'Password confirmation is required';
-    } else if (formData.password !== formData.passwordConfirm) {
-      errors.passwordConfirm = 'Passwords do not match';
+    if (formData.password !== formData.passwordConfirm) {
+      errors.passwordConfirm = 'Passwords must match';
+      isValid = false;
     }
 
     if (!formData.phone) {
       errors.phone = 'Phone number is required';
-    } else if (!/^[0-9]{10,15}$/.test(formData.phone.replace(/[\s-+()]/g, ''))) {
-      errors.phone = 'Please enter a valid phone number';
+      isValid = false;
     }
 
-    if (!formData.cnic) {
-      errors.cnic = 'CNIC is required';
-    } else if (!/^\d{5}-\d{7}-\d{1}$/.test(formData.cnic)) {
-      errors.cnic = 'CNIC format should be: 12345-1234567-1';
+    if (!formData.employeeId) {
+      errors.employeeId = 'Employee ID is required';
+      isValid = false;
+    }
+
+    if (!formData.department) {
+      errors.department = 'Department is required';
+      isValid = false;
     }
 
     setValidationErrors(errors);
-    return Object.keys(errors).length === 0;
+    return isValid;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLocalError('');
-
-    if (!validateForm()) {
-      setLocalError('Please fix the errors below');
-      return;
-    }
+    
+    if (!validateForm()) return;
 
     try {
-      const result = await register(formData);
-      
-      if (result.success) {
-        navigate('/account-pending', { 
-          state: { 
-            message: 'Registration successful! Your account is pending admin approval.',
-            email: formData.email 
-          }
-        });
-      } else {
-        setLocalError(result.error);
-      }
+      await register(formData);
+      navigate('/account-pending', { 
+        state: { 
+          email: formData.email,
+          message: 'Your registration is pending admin approval' 
+        }
+      });
     } catch (err) {
-      setLocalError('An unexpected error occurred. Please try again.');
+      // Error is already handled by the auth context
+      console.error('Registration error:', err);
     }
   };
-
-  const formatCNIC = (value) => {
-    const digits = value.replace(/\D/g, '');
-    
-    if (digits.length <= 5) {
-      return digits;
-    } else if (digits.length <= 12) {
-      return `${digits.slice(0, 5)}-${digits.slice(5)}`;
-    } else {
-      return `${digits.slice(0, 5)}-${digits.slice(5, 12)}-${digits.slice(12, 13)}`;
-    }
-  };
-
-  const handleCNICChange = (e) => {
-    const formatted = formatCNIC(e.target.value);
-    setFormData(prev => ({
-      ...prev,
-      cnic: formatted
-    }));
-    
-    if (validationErrors.cnic) {
-      setValidationErrors(prev => ({
-        ...prev,
-        cnic: ''
-      }));
-    }
-  };
-
-  const displayError = localError || error;
 
   return (
-    <div className="min-h-screen bg-bg-light flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        {/* Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary rounded-full mb-4">
-            <UserPlus className="w-8 h-8 text-white" />
-          </div>
-          <h1 className="text-2xl font-semibold text-text-main mb-2">Create Account</h1>
-          <p className="text-muted">Join as an employee</p>
+          <h1 className="text-2xl font-bold text-gray-900">Create your account</h1>
+          <p className="mt-2 text-gray-600">
+            Join your company's employee portal
+          </p>
         </div>
 
-        {/* Registration Form */}
-        <div className="bg-surface rounded-lg shadow-sm border border-gray-200 p-6">
-          {/* Error Display */}
-          {displayError && (
-            <div className="mb-4 p-3 bg-error/10 border border-error/20 rounded-lg flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-error flex-shrink-0" />
-              <div>
-                <p className="text-error text-sm">{displayError}</p>
-              </div>
+        <div className="bg-white p-8 rounded-lg shadow-sm border border-gray-100">
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 rounded-lg flex items-center gap-2 text-red-600 text-sm">
+              <AlertCircle className="w-5 h-5" />
+              <span>{error}</span>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Name Field */}
+          <form className="space-y-4" onSubmit={handleSubmit}>
             <div>
-              <label htmlFor="name" className="block text-sm text-muted mb-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 Full Name
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <User className="h-5 w-5 text-muted" />
+                  <User className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
                   type="text"
-                  id="name"
                   name="name"
                   value={formData.name}
                   onChange={handleInputChange}
-                  className={`block w-full pl-10 pr-3 py-2 border rounded-md focus-ring ${
-                    validationErrors.name ? 'border-error' : 'border-gray-300'
+                  className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    validationErrors.name ? 'border-red-500' : 'border-gray-300'
                   }`}
-                  placeholder="Enter your full name"
-                  disabled={isLoading}
+                  placeholder="John Doe"
                 />
               </div>
               {validationErrors.name && (
-                <p className="mt-1 text-sm text-error">{validationErrors.name}</p>
+                <p className="mt-1 text-sm text-red-600">{validationErrors.name}</p>
               )}
             </div>
 
-            {/* Email Field */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Employee ID
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <CreditCard className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="text"
+                    name="employeeId"
+                    value={formData.employeeId}
+                    onChange={handleInputChange}
+                    className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                      validationErrors.employeeId ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                    placeholder="EMP-123"
+                  />
+                </div>
+                {validationErrors.employeeId && (
+                  <p className="mt-1 text-sm text-red-600">{validationErrors.employeeId}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Department
+                </label>
+                <select
+                  name="department"
+                  value={formData.department}
+                  onChange={handleInputChange}
+                  className={`w-full pl-3 pr-10 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    validationErrors.department ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                >
+                  <option value="">Select department</option>
+                  {departments.map(dept => (
+                    <option key={dept} value={dept}>{dept}</option>
+                  ))}
+                </select>
+                {validationErrors.department && (
+                  <p className="mt-1 text-sm text-red-600">{validationErrors.department}</p>
+                )}
+              </div>
+            </div>
+
             <div>
-              <label htmlFor="email" className="block text-sm text-muted mb-2">
-                Email Address
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Email
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-muted" />
+                  <Mail className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
                   type="email"
-                  id="email"
                   name="email"
                   value={formData.email}
                   onChange={handleInputChange}
-                  className={`block w-full pl-10 pr-3 py-2 border rounded-md focus-ring ${
-                    validationErrors.email ? 'border-error' : 'border-gray-300'
+                  className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    validationErrors.email ? 'border-red-500' : 'border-gray-300'
                   }`}
-                  placeholder="Enter your email"
-                  disabled={isLoading}
+                  placeholder="your.name@company.com"
                 />
               </div>
               {validationErrors.email && (
-                <p className="mt-1 text-sm text-error">{validationErrors.email}</p>
+                <p className="mt-1 text-sm text-red-600">{validationErrors.email}</p>
               )}
             </div>
 
-            {/* Phone Field */}
             <div>
-              <label htmlFor="phone" className="block text-sm text-muted mb-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 Phone Number
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Phone className="h-5 w-5 text-muted" />
+                  <Phone className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
                   type="tel"
-                  id="phone"
                   name="phone"
                   value={formData.phone}
                   onChange={handleInputChange}
-                  className={`block w-full pl-10 pr-3 py-2 border rounded-md focus-ring ${
-                    validationErrors.phone ? 'border-error' : 'border-gray-300'
+                  className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    validationErrors.phone ? 'border-red-500' : 'border-gray-300'
                   }`}
-                  placeholder="Enter your phone number"
-                  disabled={isLoading}
+                  placeholder="+1 (555) 123-4567"
                 />
               </div>
               {validationErrors.phone && (
-                <p className="mt-1 text-sm text-error">{validationErrors.phone}</p>
+                <p className="mt-1 text-sm text-red-600">{validationErrors.phone}</p>
               )}
             </div>
 
-            {/* CNIC Field */}
             <div>
-              <label htmlFor="cnic" className="block text-sm text-muted mb-2">
-                CNIC Number
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <CreditCard className="h-5 w-5 text-muted" />
-                </div>
-                <input
-                  type="text"
-                  id="cnic"
-                  name="cnic"
-                  value={formData.cnic}
-                  onChange={handleCNICChange}
-                  className={`block w-full pl-10 pr-3 py-2 border rounded-md focus-ring ${
-                    validationErrors.cnic ? 'border-error' : 'border-gray-300'
-                  }`}
-                  placeholder="12345-1234567-1"
-                  maxLength="15"
-                  disabled={isLoading}
-                />
-              </div>
-              {validationErrors.cnic && (
-                <p className="mt-1 text-sm text-error">{validationErrors.cnic}</p>
-              )}
-            </div>
-
-            {/* Password Field */}
-            <div>
-              <label htmlFor="password" className="block text-sm text-muted mb-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 Password
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-muted" />
+                  <Lock className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
                   type={showPassword ? "text" : "password"}
-                  id="password"
                   name="password"
                   value={formData.password}
                   onChange={handleInputChange}
-                  className={`block w-full pl-10 pr-10 py-2 border rounded-md focus-ring ${
-                    validationErrors.password ? 'border-error' : 'border-gray-300'
+                  className={`w-full pl-10 pr-10 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    validationErrors.password ? 'border-red-500' : 'border-gray-300'
                   }`}
-                  placeholder="Enter your password"
-                  disabled={isLoading}
+                  placeholder="••••••••"
                 />
                 <button
                   type="button"
                   className="absolute inset-y-0 right-0 pr-3 flex items-center"
                   onClick={() => setShowPassword(!showPassword)}
-                  disabled={isLoading}
                 >
                   {showPassword ? (
-                    <EyeOff className="h-5 w-5 text-muted hover:text-text-main" />
+                    <EyeOff className="h-5 w-5 text-gray-400" />
                   ) : (
-                    <Eye className="h-5 w-5 text-muted hover:text-text-main" />
+                    <Eye className="h-5 w-5 text-gray-400" />
                   )}
                 </button>
               </div>
               {validationErrors.password && (
-                <p className="mt-1 text-sm text-error">{validationErrors.password}</p>
+                <p className="mt-1 text-sm text-red-600">{validationErrors.password}</p>
               )}
             </div>
 
-            {/* Password Confirmation Field */}
             <div>
-              <label htmlFor="passwordConfirm" className="block text-sm text-muted mb-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 Confirm Password
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-muted" />
+                  <Lock className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
-                  type={showPasswordConfirm ? "text" : "password"}
-                  id="passwordConfirm"
+                  type={showPassword ? "text" : "password"}
                   name="passwordConfirm"
                   value={formData.passwordConfirm}
                   onChange={handleInputChange}
-                  className={`block w-full pl-10 pr-10 py-2 border rounded-md focus-ring ${
-                    validationErrors.passwordConfirm ? 'border-error' : 'border-gray-300'
+                  className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    validationErrors.passwordConfirm ? 'border-red-500' : 'border-gray-300'
                   }`}
-                  placeholder="Confirm your password"
-                  disabled={isLoading}
+                  placeholder="••••••••"
                 />
-                <button
-                  type="button"
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                  onClick={() => setShowPasswordConfirm(!showPasswordConfirm)}
-                  disabled={isLoading}
-                >
-                  {showPasswordConfirm ? (
-                    <EyeOff className="h-5 w-5 text-muted hover:text-text-main" />
-                  ) : (
-                    <Eye className="h-5 w-5 text-muted hover:text-text-main" />
-                  )}
-                </button>
               </div>
               {validationErrors.passwordConfirm && (
-                <p className="mt-1 text-sm text-error">{validationErrors.passwordConfirm}</p>
+                <p className="mt-1 text-sm text-red-600">{validationErrors.passwordConfirm}</p>
               )}
             </div>
 
-            {/* Submit Button */}
             <button
               type="submit"
-              disabled={isLoading}
-              className="btn-primary w-full py-2 mt-2 disabled:opacity-60"
+              disabled={loading}
+              className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-70 disabled:cursor-not-allowed"
             >
-              {isLoading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <Loader2 className="animate-spin h-4 w-4" />
-                  Creating Account...
+              {loading ? (
+                <span className="flex items-center justify-center">
+                  <Loader2 className="animate-spin mr-2 h-4 w-4" />
+                  Registering...
                 </span>
-              ) : (
-                'Create Account'
-              )}
+              ) : 'Register'}
             </button>
           </form>
-        </div>
 
-        {/* Login Link */}
-        <div className="mt-6 text-center">
-          <p className="text-muted text-sm">
+          <div className="mt-6 text-center text-sm text-gray-600">
             Already have an account?{' '}
-            <Link
-              to="/login"
-              className="text-primary hover:underline font-medium"
+            <Link 
+              to="/login" 
+              className="font-medium text-blue-600 hover:text-blue-500"
             >
               Sign in
             </Link>
-          </p>
-        </div>
-
-        {/* Terms Links */}
-        <div className="mt-4 text-center">
-          <p className="text-xs text-muted">
-            By creating an account, you agree to our{' '}
-            <Link to="/terms" className="text-primary hover:underline">
-              Terms
-            </Link>{' '}
-            and{' '}
-            <Link to="/privacy" className="text-primary hover:underline">
-              Privacy Policy
-            </Link>
-          </p>
+          </div>
         </div>
       </div>
     </div>

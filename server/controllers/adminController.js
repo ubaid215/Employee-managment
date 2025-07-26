@@ -11,19 +11,25 @@ exports.assignDepartmentAndDuties = async (req, res, next) => {
   try {
     const { userId, departmentId, dutyIds } = req.body;
 
-    // Validate all dutyIds belong to the department
-    const invalidDuties = await Duty.find({
-      _id: { $in: dutyIds },
-      department: { $ne: departmentId }
-    });
+    // Validate all IDs exist
+    const [user, department] = await Promise.all([
+      User.findById(userId).select('department duties'),
+      Department.findById(departmentId)
+    ]);
 
-    if (invalidDuties.length > 0) {
-      return next(new AppError('Some duties do not belong to the selected department', 400));
-    }
+    if (!user) return next(new AppError('User not found', 404));
+    if (!department) return next(new AppError('Department not found', 404));
 
-    const user = await User.findById(userId);
-    if (!user) {
-      return next(new AppError('User not found', 404));
+    // Validate duties
+    if (dutyIds && dutyIds.length > 0) {
+      const dutiesCount = await Duty.countDocuments({
+        _id: { $in: dutyIds },
+        department: departmentId
+      });
+      
+      if (dutiesCount !== dutyIds.length) {
+        return next(new AppError('Some duties do not belong to the department', 400));
+      }
     }
 
     // Save previous values for history
@@ -128,6 +134,112 @@ exports.getAllEmployees = async (req, res) => {
   }
 };
 
+exports.getEmployee = async (req, res, next) => {
+  try {
+    const employee = await User.findById(req.params.id)
+      .select('-password -passwordConfirm -passwordResetToken -passwordResetExpires') // Exclude sensitive fields
+      .populate({
+        path: 'department',
+        select: 'name duties createdAt',
+        populate: {
+          path: 'duties',
+          select: 'title description'
+        }
+      })
+      .populate({
+        path: 'duties',
+        select: 'title description formSchema department',
+        populate: {
+          path: 'department',
+          select: 'name'
+        }
+      })
+      .populate({
+        path: 'leaveRecords',
+        select: 'reason fromDate toDate status appliedAt decisionAt',
+        options: { sort: { fromDate: -1 } }
+      })
+      .populate({
+        path: 'salaryRecords',
+        select: 'amount type month paidOn status note advanceAmount fullPayment',
+        options: { sort: { month: -1 } }
+      })
+      .populate({
+        path: 'history',
+        select: 'fromDepartment toDepartment fromDuties toDuties changedAt reason',
+        populate: [
+          {
+            path: 'fromDepartment toDepartment',
+            select: 'name'
+          },
+          {
+            path: 'fromDuties toDuties',
+            select: 'title'
+          },
+          {
+            path: 'changedBy',
+            select: 'name email'
+          }
+        ],
+        options: { sort: { changedAt: -1 } }
+      });
+
+    if (!employee) {
+      return next(new AppError('Employee not found', 404));
+    }
+
+    // Calculate leave statistics
+    const leaveStats = await Leave.aggregate([
+      { $match: { employee: employee._id } },
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 },
+          totalDays: {
+            $sum: {
+              $divide: [
+                { $subtract: ['$toDate', '$fromDate'] },
+                86400000 // milliseconds in a day
+              ]
+            }
+          }
+        }
+      }
+    ]);
+
+    // Calculate salary statistics
+    const salaryStats = await Salary.aggregate([
+      { $match: { employee: employee._id } },
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 },
+          totalAmount: { $sum: '$amount' },
+          averageAmount: { $avg: '$amount' }
+        }
+      }
+    ]);
+
+    // Format the response
+    const response = {
+      status: 'success',
+      data: {
+        employee: {
+          ...employee.toObject(),
+          stats: {
+            leaves: leaveStats,
+            salaries: salaryStats
+          }
+        }
+      }
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
 // View all task submissions
 exports.viewEmployeeTasks = async (req, res) => {
   try {
@@ -167,14 +279,21 @@ exports.reviewTask = async (req, res, next) => {
       return next(new AppError('Task not found', 404));
     }
 
-    const updatedTask = await task.updateStatus(status, req.user.id, feedback);
+    // Update and lock the task
+    task.status = status;
+    task.reviewedAt = new Date();
+    task.reviewedBy = req.user.id;
+    task.allowUpdates = status === 'needs_revision'; // Only allow updates if needs revision
+    task.feedback = feedback || '';
 
-    // Emit real-time updates
+    const updatedTask = await task.save();
+
+    // Real-time updates
     req.io.to(task.employee.toString()).emit('task-status-updated', {
       taskId: task._id,
       status,
-      feedback,
-      reviewedAt: updatedTask.reviewedAt
+      allowUpdates: task.allowUpdates,
+      feedback: task.feedback
     });
 
     req.io.to('admin-room').emit('task-reviewed', {
@@ -188,7 +307,6 @@ exports.reviewTask = async (req, res, next) => {
       message: `Task ${status}`,
       task: updatedTask
     });
-
   } catch (error) {
     next(error);
   }
@@ -386,7 +504,8 @@ exports.getAdminLeaveAnalytics = async (req, res, next) => {
 // PATCH approve/reject leave
 exports.approveLeave = async (req, res, next) => {
   try {
-    const { leaveId, status, rejectionReason } = req.body;
+    const { id } = req.params; // Now getting ID from URL params
+    const { status, rejectionReason } = req.body; // Status comes from request body
 
     // Validate status
     if (!['approved', 'rejected'].includes(status)) {
@@ -394,7 +513,7 @@ exports.approveLeave = async (req, res, next) => {
     }
 
     // Find leave request
-    const leave = await Leave.findById(leaveId);
+    const leave = await Leave.findById(id);
     if (!leave) {
       return next(new AppError('Leave request not found', 404));
     }
@@ -418,6 +537,26 @@ exports.approveLeave = async (req, res, next) => {
     // Populate for response
     await leave.populate('employee', 'name email');
     await leave.populate('decidedBy', 'name');
+
+    // If approved, update user status if currently on leave
+    if (status === 'approved') {
+      const today = new Date();
+      if (new Date(leave.fromDate) <= today && new Date(leave.toDate) >= today) {
+        await User.findByIdAndUpdate(leave.employee._id, {
+          status: 'on_leave'
+        });
+        
+        // Schedule status reversion when leave ends
+        const leaveEnd = new Date(leave.toDate);
+        leaveEnd.setDate(leaveEnd.getDate() + 1); // Next day
+        
+        setTimeout(async () => {
+          await User.findByIdAndUpdate(leave.employee._id, {
+            status: 'active'
+          });
+        }, leaveEnd - today);
+      }
+    }
 
     // Emit real-time update to employee
     req.io.to(leave.employee._id.toString()).emit('leave-status-updated', {
@@ -499,6 +638,54 @@ exports.addSalary = async (req, res, next) => {
   }
 };
 
+// Get all salaries with filtering options
+exports.getAllSalaries = async (req, res, next) => {
+  try {
+    const { employee, month, status } = req.query;
+    const filter = {};
+    
+    if (employee) filter.employee = employee;
+    if (month) filter.month = month;
+    if (status) filter.status = status;
+
+    const salaries = await Salary.find(filter)
+      .populate('employee', 'name email')
+      .sort({ month: -1 });
+
+    res.status(200).json({
+      status: 'success',
+      results: salaries.length,
+      data: { salaries }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Update existing salary record
+exports.updateSalary = async (req, res, next) => {
+  try {
+    const { amount, type, status, note } = req.body;
+    
+    const salary = await Salary.findByIdAndUpdate(
+      req.params.id,
+      { amount, type, status, note },
+      { new: true, runValidators: true }
+    ).populate('employee', 'name');
+
+    if (!salary) {
+      return next(new AppError('Salary record not found', 404));
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: { salary }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 
 exports.createDepartment = async (req, res, next) => {
   try {
@@ -548,17 +735,18 @@ exports.createDuty = async (req, res, next) => {
       return next(new AppError('Department ID is required', 400));
     }
 
-    // Rest of your existing code...
     const deptExists = await Department.findById(department);
     if (!deptExists) {
       return next(new AppError('Department not found', 404));
     }
 
+    // Create duty with the authenticated user as creator
     const duty = await Duty.create({
       title,
       description: description || '', // Default empty string if not provided
       department,
-      formSchema: formSchema || { fields: [] } // Default empty schema
+      formSchema: formSchema || { fields: [] }, // Default empty schema
+      createdBy: req.user.id // Add the authenticated user's ID
     });
 
     await Department.findByIdAndUpdate(department, {
@@ -573,7 +761,12 @@ exports.createDuty = async (req, res, next) => {
     });
 
   } catch (error) {
-    // Improved error logging
+    // Improved error handling
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(val => val.message);
+      return next(new AppError(`Validation failed: ${messages.join(', ')}`, 400));
+    }
+    
     console.error('Error in createDuty:', error);
     next(error);
   }

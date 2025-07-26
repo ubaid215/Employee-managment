@@ -13,7 +13,9 @@ const {
   getAllDuties,
   updateProfileImage,
   deleteProfileImage,
-  getMyLeaveAnalytics
+  getMyLeaveAnalytics,
+  getDuties,
+  getMyDutyHistory
 } = require('../controllers/employeeController');
 const { protect } = require('../middlewares/authMiddleware');
 
@@ -31,6 +33,7 @@ router.delete('/me/photo', deleteProfileImage);
 
 // Task submission
 router.post('/submit-task', submitTask);
+router.put('/tasks/:id', submitTask);
 
 // Leave management
 router.post('/apply-leave', applyLeave);
@@ -41,10 +44,12 @@ router.get('/my-leaves/analytics', getMyLeaveAnalytics);
 router.get('/salary', getSalary);
 
 // Option 1: Make ID optional with query parameter
-router.get('/salary/pdf/:salaryId', downloadSalaryPDF);
+router.get('/salary/pdf/:id', downloadSalaryPDF);
 
 router.get('/departments', getAllDepartments);
 router.get('/duties', getAllDuties);
+router.get('/duty-history', getMyDutyHistory);
+router.get('/my-duties', getDuties); 
 
 
 

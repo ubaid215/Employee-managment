@@ -1,130 +1,109 @@
-const Leave = require('../models/Leave');
+const Salary = require('../models/Salary');
 const User = require('../models/User');
+const PDFDocument = require('pdfkit');
 
-// Submit leave request
-exports.submitLeave = async (req, res) => {
+// Add salary record (admin only)
+exports.addSalary = async (req, res) => {
   try {
-    const { reason, fromDate, toDate } = req.body;
+    const { employeeId, amount, type, month, note } = req.body;
     
-    const leave = await Leave.create({
-      employee: req.user.id,
-      reason,
-      fromDate,
-      toDate,
-      status: 'pending',
-      appliedAt: new Date()
+    // Validate month format (e.g. "July 2023")
+    if (!/^(January|February|March|April|May|June|July|August|September|October|November|December)\s\d{4}$/.test(month)) {
+      return res.status(400).json({ 
+        message: 'Month must be in format "Month YYYY"' 
+      });
+    }
+    
+    // Check for duplicate salary for same month
+    const existingSalary = await Salary.findOne({ 
+      employee: employeeId, 
+      month 
     });
     
-    // Emit notification to admin
-    req.io.emit('leave-requested', {
-      employeeId: req.user.id,
-      leaveId: leave._id
+    if (existingSalary) {
+      return res.status(400).json({ 
+        message: 'Salary already recorded for this month' 
+      });
+    }
+    
+    const salary = await Salary.create({
+      employee: employeeId,
+      amount,
+      type,
+      month,
+      note,
+      paidOn: new Date()
     });
-    
-    res.status(201).json({ 
-      message: 'Leave request submitted',
-      leave
-    });
-    
-  } catch (error) {
-    res.status(500).json({ message: 'Server error' });
-  }
-};
-
-// Get leave records
-exports.getLeaves = async (req, res) => {
-  try {
-    let filter = {};
-    
-    // For employees, only show their own leaves
-    if (req.user.role === 'employee') {
-      filter.employee = req.user.id;
-    }
-    // For admins, can filter by employeeId if provided
-    else if (req.query.employeeId) {
-      filter.employee = req.query.employeeId;
-    }
-    
-    // Additional filters
-    if (req.query.status) filter.status = req.query.status;
-    if (req.query.month) {
-      const [month, year] = req.query.month.split(' ');
-      const startDate = new Date(`${month} 1, ${year}`);
-      const endDate = new Date(startDate);
-      endDate.setMonth(endDate.getMonth() + 1);
-      
-      filter.$or = [
-        { fromDate: { $gte: startDate, $lt: endDate } },
-        { toDate: { $gte: startDate, $lt: endDate } },
-        { $and: [
-          { fromDate: { $lt: startDate } },
-          { toDate: { $gte: endDate } }
-        ]}
-      ];
-    }
-    
-    const leaves = await Leave.find(filter)
-      .populate('employee', 'name')
-      .sort({ fromDate: -1 });
-      
-    res.status(200).json(leaves);
-    
-  } catch (error) {
-    res.status(500).json({ message: 'Server error' });
-  }
-};
-
-// Approve/reject leave (admin only)
-exports.approveLeave = async (req, res) => {
-  try {
-    const { leaveId, status, rejectionReason } = req.body;
-    
-    if (!['approved', 'rejected'].includes(status)) {
-      return res.status(400).json({ message: 'Invalid status' });
-    }
-    
-    const leave = await Leave.findByIdAndUpdate(
-      leaveId,
-      { 
-        status,
-        decisionAt: new Date(),
-        decidedBy: req.user.id,
-        ...(status === 'rejected' && { rejectionReason })
-      },
-      { new: true }
-    ).populate('employee', 'name');
-    
-    if (!leave) {
-      return res.status(404).json({ message: 'Leave not found' });
-    }
-    
-    // If approved, update user status if currently on leave
-    if (status === 'approved') {
-      const today = new Date();
-      if (new Date(leave.fromDate) <= today && new Date(leave.toDate) >= today) {
-        await User.findByIdAndUpdate(leave.employee, {
-          status: 'on_leave'
-        });
-        
-        // Schedule status reversion when leave ends
-        const leaveEnd = new Date(leave.toDate);
-        leaveEnd.setDate(leaveEnd.getDate() + 1); // Next day
-        
-        setTimeout(async () => {
-          await User.findByIdAndUpdate(leave.employee, {
-            status: 'active'
-          });
-        }, leaveEnd - new Date());
-      }
-    }
     
     // Emit notification to employee
-    req.io.to(`user-${leave.employee._id}`).emit('leave-updated', leave);
+    req.io.to(`user-${employeeId}`).emit('salary-added', salary);
     
-    res.status(200).json({ 
-      message: `Leave ${status}`,
-      leave
+    res.status(201).json({ 
+      message: 'Salary record added',
+      salary
     });
+    
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Get salary records for employee
+exports.getSalaryRecords = async (req, res) => {
+  try {
+    const salaries = await Salary.find({ employee: req.user.id })
+      .sort({ month: -1 });
+      
+    res.status(200).json(salaries);
+    
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Download salary slip as PDF
+exports.downloadSalaryPDF = async (req, res) => {
+  try {
+    const salary = await Salary.findById(req.params.id)
+      .populate('employee', 'name profile.cnic');
+      
+    if (!salary) {
+      return res.status(404).json({ message: 'Salary record not found' });
+    }
+    
+    // Verify employee owns this record (unless admin)
+    if (salary.employee._id.toString() !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({ 
+        message: 'Not authorized to access this record' 
+      });
+    }
+    
+    // Create PDF
+    const doc = new PDFDocument();
+    const filename = `salary-${salary.month}-${salary.employee.name}.pdf`;
+    
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    
+    doc.pipe(res);
+    
+    // PDF content
+    doc.fontSize(20).text('Salary Slip', { align: 'center' });
+    doc.moveDown();
+    
+    doc.fontSize(14).text(`Employee: ${salary.employee.name}`);
+    doc.text(`CNIC: ${salary.employee.profile.cnic}`);
+    doc.text(`Month: ${salary.month}`);
+    doc.text(`Amount: ${salary.amount}`);
+    doc.text(`Type: ${salary.type}`);
+    doc.text(`Paid On: ${salary.paidOn.toDateString()}`);
+    
+    if (salary.note) {
+      doc.moveDown();
+      doc.text(`Note: ${salary.note}`);
+    }
+    
+    doc.end();
     
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
