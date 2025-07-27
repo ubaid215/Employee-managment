@@ -5,7 +5,7 @@ import {
   Users, Calendar, Briefcase, 
   CheckCircle, XCircle, Clock,
   ArrowRight, PieChart, BarChart2,
-  Activity, Download
+  Activity, Download, TrendingUp
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import DepartmentChangeModal from './DepartmentChangeModal';
@@ -22,16 +22,16 @@ import {
   ResponsiveContainer
 } from 'recharts';
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
+const COLORS = ['#6366F1', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4'];
 
 const AdminDashboard = () => {
   const { user } = useAuth();
   const { 
-    employees, 
-    leaves, 
-    departments,
+    employees = [], 
+    leaves = [], 
+    departments = [],
     fetchEmployees,
-    fetchLeaves,
+    fetchAllLeaves,
     fetchDepartments,
     loading 
   } = useAdmin();
@@ -42,94 +42,125 @@ const AdminDashboard = () => {
   useEffect(() => {
     if (user?.role === 'admin') {
       fetchEmployees();
-      fetchLeaves();
+      fetchAllLeaves();
       fetchDepartments();
     }
-  }, [user, fetchEmployees, fetchLeaves, fetchDepartments]);
+  }, [user, fetchEmployees, fetchAllLeaves, fetchDepartments]);
 
-  // Prepare chart data
+  // Prepare chart data with safe defaults
   const employeeStatusData = [
-    { name: 'Active', value: employees.filter(e => e.status === 'active').length },
-    { name: 'Pending', value: employees.filter(e => e.status === 'pending').length },
-    { name: 'Suspended', value: employees.filter(e => e.status === 'suspended').length },
+    { name: 'Active', value: employees.filter(e => e?.status === 'active').length },
+    { name: 'Pending', value: employees.filter(e => e?.status === 'pending').length },
+    { name: 'Suspended', value: employees.filter(e => e?.status === 'suspended').length },
   ];
 
   const leaveStatusData = [
-    { name: 'Approved', value: leaves.filter(l => l.status === 'approved').length },
-    { name: 'Pending', value: leaves.filter(l => l.status === 'pending').length },
-    { name: 'Rejected', value: leaves.filter(l => l.status === 'rejected').length },
+    { name: 'Approved', value: leaves.filter(l => l?.status === 'approved').length },
+    { name: 'Pending', value: leaves.filter(l => l?.status === 'pending').length },
+    { name: 'Rejected', value: leaves.filter(l => l?.status === 'rejected').length },
   ];
 
-  // eslint-disable-next-line no-unused-vars
   const departmentDistributionData = departments.map(dept => ({
-    name: dept.name,
-    employees: employees.filter(e => e.department?._id === dept._id).length
+    name: dept?.name || 'Unknown',
+    employees: employees.filter(e => e?.department?._id === dept?._id).length
   }));
 
   if (user?.role !== 'admin') {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="text-center p-6 bg-white rounded-xl shadow-sm border border-gray-200 max-w-md">
-          <XCircle className="mx-auto h-12 w-12 text-red-500 mb-4" />
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Access Denied</h2>
-          <p className="text-gray-600">You don't have permission to view this page</p>
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+        <div className="text-center p-8 bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md backdrop-blur-sm">
+          <div className="w-16 h-16 bg-gradient-to-r from-red-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-6">
+            <XCircle className="h-8 w-8 text-white" />
+          </div>
+          <h2 className="text-2xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent mb-3">Access Denied</h2>
+          <p className="text-slate-600">You don't have permission to view this page</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-4 md:p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
-          <p className="text-gray-600">Overview and analytics</p>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent mb-2">
+            Admin Dashboard
+          </h1>
+          <p className="text-slate-600 text-lg">Overview and analytics for your organization</p>
         </div>
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-            <div className="flex items-center justify-between">
+          <div className="bg-white p-6 rounded-2xl shadow-lg border border-slate-200/60 backdrop-blur-sm relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-blue-500/10 to-indigo-500/10 rounded-full -translate-y-4 translate-x-4"></div>
+            <div className="flex items-center justify-between relative">
               <div>
-                <p className="text-sm text-gray-500">Total Employees</p>
-                <p className="text-2xl font-semibold">{employees.length}</p>
+                <p className="text-sm font-medium text-slate-600 mb-1">Total Employees</p>
+                <p className="text-3xl font-bold text-slate-800">{employees.length}</p>
+                <div className="flex items-center mt-2 text-xs">
+                  <TrendingUp size={12} className="text-emerald-500 mr-1" />
+                  <span className="text-emerald-600 font-medium">+2.5% from last month</span>
+                </div>
               </div>
-              <Users size={24} className="text-blue-500" />
+              <div className="p-3 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-xl shadow-lg">
+                <Users size={24} className="text-white" />
+              </div>
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-            <div className="flex items-center justify-between">
+          <div className="bg-white p-6 rounded-2xl shadow-lg border border-slate-200/60 backdrop-blur-sm relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-amber-500/10 to-orange-500/10 rounded-full -translate-y-4 translate-x-4"></div>
+            <div className="flex items-center justify-between relative">
               <div>
-                <p className="text-sm text-gray-500">Pending Leaves</p>
-                <p className="text-2xl font-semibold text-yellow-600">
-                  {leaves.filter(l => l.status === 'pending').length}
+                <p className="text-sm font-medium text-slate-600 mb-1">Pending Leaves</p>
+                <p className="text-3xl font-bold text-amber-600">
+                  {leaves.filter(l => l?.status === 'pending').length}
                 </p>
+                <div className="flex items-center mt-2 text-xs">
+                  <Clock size={12} className="text-amber-500 mr-1" />
+                  <span className="text-amber-600 font-medium">Requires attention</span>
+                </div>
               </div>
-              <Calendar size={24} className="text-yellow-500" />
+              <div className="p-3 bg-gradient-to-r from-amber-500 to-orange-500 rounded-xl shadow-lg">
+                <Calendar size={24} className="text-white" />
+              </div>
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-            <div className="flex items-center justify-between">
+          <div className="bg-white p-6 rounded-2xl shadow-lg border border-slate-200/60 backdrop-blur-sm relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-emerald-500/10 to-teal-500/10 rounded-full -translate-y-4 translate-x-4"></div>
+            <div className="flex items-center justify-between relative">
               <div>
-                <p className="text-sm text-gray-500">Departments</p>
-                <p className="text-2xl font-semibold">{departments.length}</p>
+                <p className="text-sm font-medium text-slate-600 mb-1">Departments</p>
+                <p className="text-3xl font-bold text-slate-800">{departments.length}</p>
+                <div className="flex items-center mt-2 text-xs">
+                  <CheckCircle size={12} className="text-emerald-500 mr-1" />
+                  <span className="text-emerald-600 font-medium">All active</span>
+                </div>
               </div>
-              <Briefcase size={24} className="text-green-500" />
+              <div className="p-3 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-xl shadow-lg">
+                <Briefcase size={24} className="text-white" />
+              </div>
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-            <div className="flex items-center justify-between">
+          <div className="bg-white p-6 rounded-2xl shadow-lg border border-slate-200/60 backdrop-blur-sm relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-purple-500/10 to-pink-500/10 rounded-full -translate-y-4 translate-x-4"></div>
+            <div className="flex items-center justify-between relative">
               <div>
-                <p className="text-sm text-gray-500">Active Duties</p>
-                <p className="text-2xl font-semibold text-green-600">
-                  {employees.reduce((acc, emp) => acc + (emp.duties?.length || 0), 0)}
+                <p className="text-sm font-medium text-slate-600 mb-1">Active Duties</p>
+                <p className="text-3xl font-bold text-purple-600">
+                  {employees.reduce((acc, emp) => acc + (emp?.duties?.length || 0), 0)}
                 </p>
+                <div className="flex items-center mt-2 text-xs">
+                  <Activity size={12} className="text-purple-500 mr-1" />
+                  <span className="text-purple-600 font-medium">Ongoing tasks</span>
+                </div>
               </div>
-              <Activity size={24} className="text-purple-500" />
+              <div className="p-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl shadow-lg">
+                <Activity size={24} className="text-white" />
+              </div>
             </div>
           </div>
         </div>
@@ -137,18 +168,20 @@ const AdminDashboard = () => {
         {/* Charts Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {/* Employee Status Pie Chart */}
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                <PieChart size={20} className="text-blue-500" />
-                Employee Status
+          <div className="bg-white p-6 rounded-2xl shadow-lg border border-slate-200/60 backdrop-blur-sm">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold flex items-center gap-3">
+                <div className="p-2 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-lg">
+                  <PieChart size={20} className="text-white" />
+                </div>
+                <span className="text-slate-800">Employee Status</span>
               </h2>
-              <button className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1">
+              <button className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1 px-3 py-1.5 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors duration-200 font-medium">
                 <Download size={16} />
                 Export
               </button>
             </div>
-            <div className="h-64">
+            <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChartComponent>
                   <Pie
@@ -156,7 +189,7 @@ const AdminDashboard = () => {
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                    outerRadius={80}
+                    outerRadius={90}
                     fill="#8884d8"
                     dataKey="value"
                     label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
@@ -165,25 +198,34 @@ const AdminDashboard = () => {
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'white', 
+                      border: '1px solid #e2e8f0', 
+                      borderRadius: '12px',
+                      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
+                    }} 
+                  />
                 </PieChartComponent>
               </ResponsiveContainer>
             </div>
           </div>
 
           {/* Leave Status Bar Chart */}
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                <BarChart2 size={20} className="text-green-500" />
-                Leave Status
+          <div className="bg-white p-6 rounded-2xl shadow-lg border border-slate-200/60 backdrop-blur-sm">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold flex items-center gap-3">
+                <div className="p-2 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-lg">
+                  <BarChart2 size={20} className="text-white" />
+                </div>
+                <span className="text-slate-800">Leave Status</span>
               </h2>
-              <button className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1">
+              <button className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1 px-3 py-1.5 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors duration-200 font-medium">
                 <Download size={16} />
                 Export
               </button>
             </div>
-            <div className="h-64">
+            <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={leaveStatusData}
@@ -194,11 +236,18 @@ const AdminDashboard = () => {
                     bottom: 5,
                   }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="value" fill="#8884d8">
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis dataKey="name" tick={{ fill: '#64748b' }} />
+                  <YAxis tick={{ fill: '#64748b' }} />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'white', 
+                      border: '1px solid #e2e8f0', 
+                      borderRadius: '12px',
+                      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
+                    }} 
+                  />
+                  <Bar dataKey="value" radius={[6, 6, 0, 0]}>
                     {leaveStatusData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
@@ -210,44 +259,58 @@ const AdminDashboard = () => {
         </div>
 
         {/* Recent Activities */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {/* Recent Employees */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-            <div className="p-4 border-b border-gray-200 flex justify-between items-center">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                <Users size={20} className="text-blue-500" />
-                Recent Employees
+          <div className="bg-white rounded-2xl shadow-lg border border-slate-200/60 backdrop-blur-sm overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-slate-50 to-slate-100">
+              <h2 className="text-xl font-bold flex items-center gap-3">
+                <div className="p-2 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-lg">
+                  <Users size={20} className="text-white" />
+                </div>
+                <span className="text-slate-800">Recent Employees</span>
               </h2>
-              <Link to="/admin/employees" className="text-sm text-blue-600 hover:text-blue-800">
+              <Link 
+                to="/admin/employees" 
+                className="text-sm text-blue-600 hover:text-blue-800 font-medium px-3 py-1.5 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors duration-200"
+              >
                 View all
               </Link>
             </div>
-            <div className="p-4">
+            <div className="p-6">
               {loading ? (
-                <div className="flex justify-center py-4">
-                  <Clock className="animate-spin text-gray-400" />
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full"></div>
                 </div>
               ) : employees.length === 0 ? (
-                <p className="text-center text-gray-500 py-4">No employees found</p>
+                <div className="text-center py-8">
+                  <Users size={48} className="mx-auto text-slate-300 mb-4" />
+                  <p className="text-slate-500 font-medium">No employees found</p>
+                </div>
               ) : (
                 <div className="space-y-4">
-                  {employees.slice(0, 5).map(employee => (
-                    <div key={employee._id} className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <div className="bg-blue-100 p-2 rounded-full">
-                          <Users size={16} className="text-blue-600" />
+                  {employees.slice(0, 5).map((employee, index) => (
+                    <div key={employee._id} className="flex items-center justify-between p-4 hover:bg-slate-50 rounded-xl transition-colors duration-200 border border-transparent hover:border-slate-200">
+                      <div className="flex items-center gap-4">
+                        <div className="relative">
+                          <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center">
+                            <Users size={18} className="text-white" />
+                          </div>
+                          <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${
+                            employee.status === 'active' ? 'bg-emerald-500' : 
+                            employee.status === 'pending' ? 'bg-amber-500' : 'bg-red-500'
+                          }`}></div>
                         </div>
                         <div>
-                          <h3 className="font-medium">{employee.name}</h3>
-                          <p className="text-sm text-gray-500">{employee.email}</p>
+                          <h3 className="font-semibold text-slate-800">{employee.name}</h3>
+                          <p className="text-sm text-slate-500">{employee.email}</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`text-xs px-2 py-1 rounded ${
+                      <div className="flex items-center gap-3">
+                        <span className={`text-xs px-3 py-1 rounded-full font-medium ${
                           employee.status === 'active' 
-                            ? 'bg-green-100 text-green-800' 
+                            ? 'bg-emerald-100 text-emerald-800' 
                             : employee.status === 'pending' 
-                              ? 'bg-yellow-100 text-yellow-800' 
+                              ? 'bg-amber-100 text-amber-800' 
                               : 'bg-red-100 text-red-800'
                         }`}>
                           {employee.status}
@@ -257,7 +320,7 @@ const AdminDashboard = () => {
                             setSelectedEmployeeId(employee._id);
                             setModalOpen(true);
                           }}
-                          className="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded"
+                          className="text-xs bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg font-medium transition-colors duration-200"
                         >
                           Assign
                         </button>
@@ -270,45 +333,53 @@ const AdminDashboard = () => {
           </div>
 
           {/* Pending Leaves */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-            <div className="p-4 border-b border-gray-200 flex justify-between items-center">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                <Calendar size={20} className="text-yellow-500" />
-                Pending Leaves
+          <div className="bg-white rounded-2xl shadow-lg border border-slate-200/60 backdrop-blur-sm overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-slate-50 to-slate-100">
+              <h2 className="text-xl font-bold flex items-center gap-3">
+                <div className="p-2 bg-gradient-to-r from-amber-500 to-orange-500 rounded-lg">
+                  <Calendar size={20} className="text-white" />
+                </div>
+                <span className="text-slate-800">Pending Leaves</span>
               </h2>
-              <Link to="/admin/leaves" className="text-sm text-blue-600 hover:text-blue-800">
+              <Link 
+                to="/admin/leaves" 
+                className="text-sm text-blue-600 hover:text-blue-800 font-medium px-3 py-1.5 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors duration-200"
+              >
                 View all
               </Link>
             </div>
-            <div className="p-4">
+            <div className="p-6">
               {loading ? (
-                <div className="flex justify-center py-4">
-                  <Clock className="animate-spin text-gray-400" />
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full"></div>
                 </div>
               ) : leaves.filter(l => l.status === 'pending').length === 0 ? (
-                <p className="text-center text-gray-500 py-4">No pending leaves</p>
+                <div className="text-center py-8">
+                  <Calendar size={48} className="mx-auto text-slate-300 mb-4" />
+                  <p className="text-slate-500 font-medium">No pending leaves</p>
+                </div>
               ) : (
                 <div className="space-y-4">
                   {leaves
                     .filter(l => l.status === 'pending')
                     .slice(0, 5)
                     .map(leave => (
-                      <div key={leave._id} className="flex items-start gap-3 p-3 hover:bg-gray-50 rounded-lg">
-                        <div className="bg-yellow-100 p-2 rounded-full mt-1">
-                          <Clock size={16} className="text-yellow-600" />
+                      <div key={leave._id} className="flex items-start gap-4 p-4 hover:bg-slate-50 rounded-xl transition-colors duration-200 border border-transparent hover:border-slate-200">
+                        <div className="w-10 h-10 bg-gradient-to-r from-amber-500 to-orange-500 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                          <Clock size={16} className="text-white" />
                         </div>
-                        <div className="flex-1">
-                          <h3 className="font-medium line-clamp-1">{leave.reason}</h3>
-                          <p className="text-sm text-gray-500">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-slate-800 line-clamp-1">{leave.reason}</h3>
+                          <p className="text-sm text-slate-600 mt-1">
                             {new Date(leave.fromDate).toLocaleDateString()} - {new Date(leave.toDate).toLocaleDateString()}
                           </p>
-                          <p className="text-xs text-gray-500 mt-1">
+                          <p className="text-xs text-slate-500 mt-1 font-medium">
                             {leave.employee?.name || 'Unknown employee'}
                           </p>
                         </div>
                         <Link 
                           to={`/admin/leaves/${leave._id}`}
-                          className="text-xs text-blue-600 hover:text-blue-800 flex items-center"
+                          className="text-xs text-blue-600 hover:text-blue-800 flex items-center px-3 py-1.5 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors duration-200 font-medium flex-shrink-0"
                         >
                           Review <ArrowRight size={14} className="ml-1" />
                         </Link>
@@ -321,38 +392,61 @@ const AdminDashboard = () => {
         </div>
 
         {/* Quick Actions */}
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Link 
             to="/admin/employees" 
-            className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex items-center gap-3 hover:bg-gray-50 transition-colors"
+            className="bg-white p-6 rounded-2xl shadow-lg border border-slate-200/60 flex items-center gap-4 hover:bg-slate-50 transition-all duration-200 group backdrop-blur-sm hover:shadow-xl hover:-translate-y-0.5"
           >
-            <Users size={20} className="text-blue-500" />
-            <span>Manage Employees</span>
-            <ArrowRight size={16} className="ml-auto text-gray-400" />
+            <div className="p-3 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-xl shadow-lg group-hover:shadow-xl transition-shadow duration-200">
+              <Users size={20} className="text-white" />
+            </div>
+            <div className="flex-1">
+              <span className="font-semibold text-slate-800">Manage Employees</span>
+              <p className="text-xs text-slate-500 mt-1">View and manage all employees</p>
+            </div>
+            <ArrowRight size={16} className="text-slate-400 group-hover:text-slate-600 transition-colors duration-200" />
           </Link>
+
           <Link 
             to="/admin/leaves" 
-            className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex items-center gap-3 hover:bg-gray-50 transition-colors"
+            className="bg-white p-6 rounded-2xl shadow-lg border border-slate-200/60 flex items-center gap-4 hover:bg-slate-50 transition-all duration-200 group backdrop-blur-sm hover:shadow-xl hover:-translate-y-0.5"
           >
-            <Calendar size={20} className="text-yellow-500" />
-            <span>Review Leaves</span>
-            <ArrowRight size={16} className="ml-auto text-gray-400" />
+            <div className="p-3 bg-gradient-to-r from-amber-500 to-orange-500 rounded-xl shadow-lg group-hover:shadow-xl transition-shadow duration-200">
+              <Calendar size={20} className="text-white" />
+            </div>
+            <div className="flex-1">
+              <span className="font-semibold text-slate-800">Review Leaves</span>
+              <p className="text-xs text-slate-500 mt-1">Approve or reject leave requests</p>
+            </div>
+            <ArrowRight size={16} className="text-slate-400 group-hover:text-slate-600 transition-colors duration-200" />
           </Link>
+
           <Link 
             to="/admin/departments" 
-            className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex items-center gap-3 hover:bg-gray-50 transition-colors"
+            className="bg-white p-6 rounded-2xl shadow-lg border border-slate-200/60 flex items-center gap-4 hover:bg-slate-50 transition-all duration-200 group backdrop-blur-sm hover:shadow-xl hover:-translate-y-0.5"
           >
-            <Briefcase size={20} className="text-green-500" />
-            <span>Departments</span>
-            <ArrowRight size={16} className="ml-auto text-gray-400" />
+            <div className="p-3 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-xl shadow-lg group-hover:shadow-xl transition-shadow duration-200">
+              <Briefcase size={20} className="text-white" />
+            </div>
+            <div className="flex-1">
+              <span className="font-semibold text-slate-800">Departments</span>
+              <p className="text-xs text-slate-500 mt-1">Manage organizational structure</p>
+            </div>
+            <ArrowRight size={16} className="text-slate-400 group-hover:text-slate-600 transition-colors duration-200" />
           </Link>
+
           <Link 
             to="/admin/analytics" 
-            className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex items-center gap-3 hover:bg-gray-50 transition-colors"
+            className="bg-white p-6 rounded-2xl shadow-lg border border-slate-200/60 flex items-center gap-4 hover:bg-slate-50 transition-all duration-200 group backdrop-blur-sm hover:shadow-xl hover:-translate-y-0.5"
           >
-            <PieChart size={20} className="text-purple-500" />
-            <span>Advanced Analytics</span>
-            <ArrowRight size={16} className="ml-auto text-gray-400" />
+            <div className="p-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl shadow-lg group-hover:shadow-xl transition-shadow duration-200">
+              <PieChart size={20} className="text-white" />
+            </div>
+            <div className="flex-1">
+              <span className="font-semibold text-slate-800">Advanced Analytics</span>
+              <p className="text-xs text-slate-500 mt-1">Detailed insights and reports</p>
+            </div>
+            <ArrowRight size={16} className="text-slate-400 group-hover:text-slate-600 transition-colors duration-200" />
           </Link>
         </div>
 

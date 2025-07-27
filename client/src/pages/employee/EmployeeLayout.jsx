@@ -1,24 +1,26 @@
-import { Outlet } from 'react-router-dom';
+import { Outlet, Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import Sidebar from '../../components/common/SideBar';
 import Navbar from '../../components/common/Navbar';
 import BottomNav from '../../components/common/BottomNav';
+import LoadingScreen from '../../components/common/LoadingScreen';
 
 const EmployeeLayout = () => {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isAdmin, loading } = useAuth();
 
-  // If user is not authenticated, show only the outlet without navigation
-  if (!isAuthenticated || !user) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <main className="min-h-screen">
-          <Outlet />
-        </main>
-      </div>
-    );
+  if (loading) {
+    return <LoadingScreen />;
   }
 
-  // If user is authenticated, show full layout with navigation
+  // Redirect if not authenticated or is admin
+  if (!isAuthenticated()) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (isAdmin()) {
+    return <Navigate to="/admin" replace />;
+  }
+
   return (
     <div className="flex h-screen bg-gray-50">
       <Sidebar />

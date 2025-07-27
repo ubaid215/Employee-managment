@@ -1,60 +1,91 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { User, Briefcase, Clock, ChevronRight } from 'lucide-react';
+import { User, Briefcase, Clock, ChevronRight, BadgeCheck, Clock4, Ban } from 'lucide-react';
 
 const EmployeeCard = ({ employee }) => {
-  const getStatusColor = (status) => {
+  const getStatusConfig = (status) => {
     switch(status) {
-      case 'active': return 'bg-green-100 text-green-800';
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'suspended': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'active':
+        return {
+          color: 'bg-emerald-100 text-emerald-800',
+          icon: <BadgeCheck size={14} className="text-emerald-500" />
+        };
+      case 'pending':
+        return {
+          color: 'bg-amber-100 text-amber-800',
+          icon: <Clock4 size={14} className="text-amber-500" />
+        };
+      case 'suspended':
+        return {
+          color: 'bg-red-100 text-red-800',
+          icon: <Ban size={14} className="text-red-500" />
+        };
+      default:
+        return {
+          color: 'bg-slate-100 text-slate-800',
+          icon: null
+        };
     }
   };
 
+  const statusConfig = getStatusConfig(employee.status);
+
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
-      <div className="p-4">
+    <div className="bg-white rounded-2xl shadow-lg border border-slate-200/60 hover:shadow-xl transition-all duration-300 hover:-translate-y-1 backdrop-blur-sm overflow-hidden group h-full flex flex-col">
+      <div className="p-5 flex-1">
         <div className="flex items-start gap-4">
-          <div className="bg-blue-100 p-3 rounded-full">
-            <User size={20} className="text-blue-600" />
+          <div className="relative flex-shrink-0">
+            <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center shadow-md">
+              <User size={20} className="text-white" />
+            </div>
+            <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-white flex items-center justify-center ${statusConfig.color}`}>
+              {statusConfig.icon}
+            </div>
           </div>
-          <div className="flex-1">
-            <div className="flex justify-between items-start">
-              <div>
-                <h3 className="font-medium text-gray-900">{employee.name}</h3>
-                <p className="text-sm text-gray-500">{employee.email}</p>
+          
+          <div className="flex-1 min-w-0">
+            <div className="flex justify-between items-start gap-2">
+              <div className="min-w-0">
+                <h3 className="font-semibold text-slate-800 truncate">{employee.name}</h3>
+                <p className="text-sm text-slate-500 truncate" title={employee.email}>
+                  {employee.email}
+                </p>
               </div>
-              <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(employee.status)}`}>
-                {employee.status}
+              <span className={`text-xs px-3 py-1 rounded-full font-medium ${statusConfig.color} flex items-center gap-1 flex-shrink-0`}>
+                {statusConfig.icon}
+                <span className="hidden sm:inline">{employee.status}</span>
               </span>
             </div>
             
-            <div className="mt-3 flex items-center gap-4 text-sm">
+            <div className="mt-3 flex flex-wrap gap-3 text-sm">
               {employee.department && (
-                <div className="flex items-center gap-1 text-gray-600">
-                  <Briefcase size={14} />
-                  <span>{employee.department.name}</span>
+                <div className="flex items-center gap-2 text-slate-600 bg-slate-50 px-3 py-1.5 rounded-lg">
+                  <Briefcase size={14} className="text-slate-400" />
+                  <span className="font-medium">{employee.department.name}</span>
                 </div>
               )}
+              
               {employee.profile?.joiningDate && (
-                <div className="flex items-center gap-1 text-gray-600">
-                  <Clock size={14} />
-                  <span>{new Date(employee.profile.joiningDate).getFullYear()}</span>
+                <div className="flex items-center gap-2 text-slate-600 bg-slate-50 px-3 py-1.5 rounded-lg">
+                  <Clock size={14} className="text-slate-400" />
+                  <span className="font-medium">
+                    Since {new Date(employee.profile.joiningDate).getFullYear()}
+                  </span>
                 </div>
               )}
             </div>
           </div>
         </div>
-        
-        <div className="mt-4 flex justify-end">
-          <Link 
-            to={`/admin/employees/${employee._id}`}
-            className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800"
-          >
-            View details <ChevronRight size={16} />
-          </Link>
-        </div>
+      </div>
+      
+      <div className="px-5 pb-4 pt-3 border-t border-slate-100">
+        <Link 
+          to={`/admin/employees/${employee._id}`}
+          className="flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-800 group-hover:underline justify-end w-full"
+        >
+          View details
+          <ChevronRight size={16} className="transition-transform group-hover:translate-x-0.5" />
+        </Link>
       </div>
     </div>
   );

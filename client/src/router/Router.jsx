@@ -1,27 +1,29 @@
-import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
-import ProtectedRoute from '../pages/ProtectedRoute';
-import LoginPage from '../pages/LoginPage';
-import RegisterPage from '../pages/RegisterPage';
-import EmployeeDashboard from '../pages/employee/EmployeeDashboard';
-import AdminDashboard from '../pages/admin/AdminDashboard';
-import EmployeeProfile from '../pages/employee/EmployeeProfile';
-import Leave from '../pages/employee/Leave';
-import Salary from '../pages/employee/Salary';
-import Duty from '../pages/employee/Duty';
-import Department from '../pages/admin/Department';
-import ForgotPasswordPage from '../pages/ForgotPasswordPage';
-import ResetPasswordPage from '../pages/ResetPasswordPage';
-import AccountPending from '../pages/AccountPending';
-import NotFound from '../pages/NotFound';
-import EmployeeLayout from '../pages/employee/EmployeeLayout';
-import AdminLayout from '../pages/admin/AdminLayout';
-import AuthLayout from '../pages/AuthLayout';
-import GiveSalary from '../pages/admin/GiveSalary';
-import LeavesManage from '../pages/admin/LeavesManage';
-import Settings from '../pages/admin/Settings';
-import LoadingScreen from '../components/common/LoadingScreen'; 
-import { useAuth } from '../context/AuthContext';
+import React from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
+import ProtectedRoute from "../pages/ProtectedRoute";
+import LoginPage from "../pages/LoginPage";
+import RegisterPage from "../pages/RegisterPage";
+import EmployeeDashboard from "../pages/employee/EmployeeDashboard";
+import AdminDashboard from "../pages/admin/AdminDashboard";
+import EmployeeProfile from "../pages/employee/EmployeeProfile";
+import Leave from "../pages/employee/Leave";
+import Salary from "../pages/employee/Salary";
+import Duty from "../pages/employee/Duty";
+import Department from "../pages/admin/Department";
+import ForgotPasswordPage from "../pages/ForgotPasswordPage";
+import ResetPasswordPage from "../pages/ResetPasswordPage";
+import AccountPending from "../pages/AccountPending";
+import NotFound from "../pages/NotFound";
+import EmployeeLayout from "../pages/employee/EmployeeLayout";
+import AdminLayout from "../pages/admin/AdminLayout";
+import AuthLayout from "../pages/AuthLayout";
+import GiveSalary from "../pages/admin/GiveSalary";
+import EmployeeList from "../pages/admin/EmployeeList";
+import EmployeeDetails from "../pages/admin/EmployeeDetails";
+import LeavesManage from "../pages/admin/LeavesManage";
+import Settings from "../pages/admin/Settings";
+import LoadingScreen from "../components/common/LoadingScreen";
+import { useAuth } from "../context/AuthContext";
 
 const Router = () => {
   const { loading } = useAuth();
@@ -43,8 +45,8 @@ const Router = () => {
       </Route>
 
       {/* Protected Employee Routes */}
-      <Route 
-        path="/" 
+      <Route
+        path="/"
         element={
           <ProtectedRoute>
             <EmployeeLayout />
@@ -59,8 +61,8 @@ const Router = () => {
       </Route>
 
       {/* Protected Admin Routes */}
-      <Route 
-        path="/admin" 
+      <Route
+        path="/admin"
         element={
           <ProtectedRoute requiredRole="admin">
             <AdminLayout />
@@ -68,9 +70,11 @@ const Router = () => {
         }
       >
         <Route index element={<AdminDashboard />} />
+        <Route path="all-employees" element={<EmployeeList />} />
+        <Route path="employees/:id" element={<EmployeeDetails />} />
         <Route path="departments" element={<Department />} />
         <Route path="add-salary" element={<GiveSalary />} />
-        <Route path="leave-manage" element={<LeavesManage />} />
+        <Route path="leaves-manage" element={<LeavesManage />} />
         <Route path="settings" element={<Settings />} />
       </Route>
 

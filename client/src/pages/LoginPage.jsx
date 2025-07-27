@@ -49,18 +49,13 @@ const LoginPage = () => {
   };
 
   // Handle redirection after successful authentication
-  useEffect(() => {
-  console.log('🔍 Checking auth state:', {
-    isAuthenticated,
-    user,
-    isAuthenticating,
-    from
-  });
-
-  if (isAuthenticated && user && !isAuthenticating) {
+ 
+useEffect(() => {
+  if (isAuthenticated() && user && !isAuthenticating) {
     if (from && from !== '/login') {
       navigate(from, { replace: true });
     } else {
+      // Use the isAdmin function from context
       if (isAdmin()) {
         navigate('/admin', { replace: true });
       } else {

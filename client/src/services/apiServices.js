@@ -175,6 +175,7 @@ const employeeService = {
  *********************/
 const adminService = {
   // Departments
+  getAllDepartments: () => queuedRequest(() => api.get('/admin/departments')), // Add this line
   createDepartment: (name) => queuedRequest(() => api.post('/admin/departments', { name })),
 
   // Duties
