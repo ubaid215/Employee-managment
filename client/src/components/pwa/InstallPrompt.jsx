@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { XMarkIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
+import { X, Download, Smartphone } from 'lucide-react';
 
 export const InstallPrompt = () => {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
@@ -39,39 +39,52 @@ export const InstallPrompt = () => {
   if (!isVisible) return null;
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 z-50 bg-white shadow-lg rounded-lg border border-stone-200 p-4 max-w-md mx-auto">
-      <div className="flex items-start">
-        <div className="flex-shrink-0 pt-0.5">
-          <ArrowDownTrayIcon className="h-5 w-5 text-emerald-600" />
-        </div>
-        <div className="ml-3 flex-1">
-          <h3 className="text-sm font-medium text-slate-800">
-            Install App
-          </h3>
-          <p className="mt-1 text-sm text-slate-600">
-            Add this app to your home screen for faster access and offline use.
-          </p>
-          <div className="mt-4 flex space-x-3">
-            <button
-              onClick={handleInstall}
-              className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md shadow-sm text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
-            >
-              Install
-            </button>
-            <button
-              onClick={handleDismiss}
-              className="inline-flex items-center px-3 py-2 border border-stone-300 text-sm leading-4 font-medium rounded-md text-slate-700 bg-white hover:bg-stone-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
-            >
-              Not Now
-            </button>
+    <div className="fixed bottom-6 left-4 right-4 z-50 max-w-sm mx-auto">
+      <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl shadow-2xl p-1">
+        <div className="bg-white rounded-2xl p-6 relative overflow-hidden">
+          {/* Background decoration */}
+          <div className="absolute top-0 right-0 -mr-4 -mt-4 w-24 h-24 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full opacity-50" />
+          
+          <button
+            onClick={handleDismiss}
+            className="absolute top-4 right-4 p-1 rounded-full hover:bg-gray-100 transition-colors"
+          >
+            <X className="h-4 w-4 text-gray-400" />
+          </button>
+          
+          <div className="flex items-start space-x-4">
+            <div className="flex-shrink-0">
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-500 rounded-xl flex items-center justify-center">
+                <Smartphone className="h-6 w-6 text-white" />
+              </div>
+            </div>
+            
+            <div className="flex-1 pt-1">
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                Install App
+              </h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Get instant access with offline support and native experience
+              </p>
+              
+              <div className="flex space-x-3">
+                <button
+                  onClick={handleInstall}
+                  className="flex items-center px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-sm font-medium rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Install
+                </button>
+                <button
+                  onClick={handleDismiss}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors"
+                >
+                  Later
+                </button>
+              </div>
+            </div>
           </div>
         </div>
-        <button
-          onClick={handleDismiss}
-          className="ml-4 flex-shrink-0 flex"
-        >
-          <XMarkIcon className="h-5 w-5 text-slate-400" />
-        </button>
       </div>
     </div>
   );

@@ -8,7 +8,7 @@ const BottomNav = () => {
   const location = useLocation();
 
   const navItems = [
-    { path: '/dashboard', icon: Home, label: 'Home' },
+    { path: '/', icon: Home, label: 'Home' },
     { path: '/duties', icon: Briefcase, label: 'Duties' },
     { path: '/leave', icon: Calendar, label: 'Leave' },
     { path: '/salary', icon: DollarSign, label: 'Salary' },

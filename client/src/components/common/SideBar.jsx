@@ -4,19 +4,18 @@ import {
   Calendar, DollarSign, Clock,
   LogOut, Settings
 } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 
 const Sidebar = () => {
   const { logout } = useAuth();
   const location = useLocation();
 
   const navItems = [
-    { path: '/dashboard', icon: Home, label: 'Dashboard' },
+    { path: '/', icon: Home, label: 'Dashboard' },
     { path: '/profile', icon: User, label: 'Profile' },
     { path: '/duties', icon: Briefcase, label: 'Duties' },
     { path: '/leave', icon: Calendar, label: 'Leave' },
     { path: '/salary', icon: DollarSign, label: 'Salary' },
-    { path: '/attendance', icon: Clock, label: 'Attendance' },
     { path: '/settings', icon: Settings, label: 'Settings' }
   ];
 

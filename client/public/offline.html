@@ -3,31 +3,640 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#6366f1">
   <title>Offline | EMS</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      text-align: center;
-      background-color: #f5f5f5;
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
     }
-    .offline-container {
-      padding: 2rem;
-      background: white;
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #0f172a 0%, #581c87 50%, #0f172a 100%);
+      color: white;
+      min-height: 100vh;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    /* Animated background elements */
+    .bg-element {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(60px);
+      opacity: 0.1;
+      animation: float 6s ease-in-out infinite;
+    }
+
+    .bg-element:nth-child(1) {
+      width: 300px;
+      height: 300px;
+      background: linear-gradient(45deg, #8b5cf6, #ec4899);
+      top: 20%;
+      left: 10%;
+      animation-delay: 0s;
+    }
+
+    .bg-element:nth-child(2) {
+      width: 200px;
+      height: 200px;
+      background: linear-gradient(45deg, #3b82f6, #8b5cf6);
+      top: 60%;
+      right: 15%;
+      animation-delay: 2s;
+    }
+
+    .bg-element:nth-child(3) {
+      width: 150px;
+      height: 150px;
+      background: linear-gradient(45deg, #ec4899, #f59e0b);
+      bottom: 20%;
+      left: 60%;
+      animation-delay: 4s;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0px) scale(1); }
+      50% { transform: translateY(-20px) scale(1.1); }
+    }
+
+    /* Mouse follow effect */
+    .mouse-glow {
+      position: absolute;
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(139, 92, 246, 0.15) 0%, transparent 70%);
+      border-radius: 50%;
+      pointer-events: none;
+      transition: all 0.3s ease;
+      z-index: 1;
+    }
+
+    /* Network status indicator */
+    .status-indicator {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .status-offline {
+      background: rgba(239, 68, 68, 0.2);
+      color: #fca5a5;
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+
+    .status-online {
+      background: rgba(34, 197, 94, 0.2);
+      color: #86efac;
+      border-color: rgba(34, 197, 94, 0.3);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    .status-dot.offline {
+      background: #ef4444;
+    }
+
+    .status-dot.online {
+      background: #22c55e;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.1); }
+    }
+
+    /* Main container */
+    .container {
+      position: relative;
+      z-index: 5;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .content {
+      max-width: 800px;
+      width: 100%;
+      text-align: center;
+    }
+
+    /* Hero section */
+    .hero {
+      margin-bottom: 60px;
+    }
+
+    .offline-text {
+      position: relative;
+      display: inline-block;
+      margin-bottom: 30px;
+    }
+
+    .offline-text .glitch-bg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      font-size: 6rem;
+      font-weight: 900;
+      opacity: 0.2;
+      filter: blur(2px);
+    }
+
+    .offline-text .glitch-bg:nth-child(1) {
+      color: #8b5cf6;
+      transform: translate(2px, 2px);
+    }
+
+    .offline-text .glitch-bg:nth-child(2) {
+      color: #ec4899;
+      transform: translate(-2px, -2px);
+    }
+
+    .offline-text .main-text {
+      position: relative;
+      font-size: 6rem;
+      font-weight: 900;
+      background: linear-gradient(45deg, #8b5cf6, #ec4899, #3b82f6);
+      background-size: 200% 200%;
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: gradient-shift 3s ease-in-out infinite;
+    }
+
+    @keyframes gradient-shift {
+      0%, 100% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+    }
+
+    .subtitle {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 16px;
+      color: white;
+    }
+
+    .description {
+      font-size: 1.1rem;
+      color: #cbd5e1;
+      line-height: 1.6;
+      margin-bottom: 40px;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    /* Action button */
+    .retry-btn {
+      position: relative;
+      background: linear-gradient(45deg, #8b5cf6, #ec4899);
+      border: none;
+      color: white;
+      padding: 16px 32px;
+      border-radius: 16px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      overflow: hidden;
+      margin-bottom: 60px;
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .retry-btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(45deg, #8b5cf6, #ec4899);
+      border-radius: 16px;
+      filter: blur(10px);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      z-index: -1;
+    }
+
+    .retry-btn:hover {
+      transform: translateY(-2px) scale(1.05);
+      box-shadow: 0 20px 40px rgba(139, 92, 246, 0.3);
+    }
+
+    .retry-btn:hover::before {
+      opacity: 0.5;
+    }
+
+    /* Features grid */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 24px;
+      margin-bottom: 60px;
+    }
+
+    .feature-card {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 20px;
+      padding: 32px 24px;
+      text-align: center;
+      transition: all 0.3s ease;
+    }
+
+    .feature-card:hover {
+      transform: translateY(-4px);
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .feature-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 16px;
+      font-size: 24px;
+    }
+
+    .feature-icon.offline {
+      background: linear-gradient(45deg, #22c55e, #3b82f6);
+    }
+
+    .feature-icon.fast {
+      background: linear-gradient(45deg, #8b5cf6, #ec4899);
+    }
+
+    .feature-icon.mobile {
+      background: linear-gradient(45deg, #f59e0b, #ef4444);
+    }
+
+    .feature-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: white;
+    }
+
+    .feature-desc {
+      font-size: 0.9rem;
+      color: #94a3b8;
+      line-height: 1.5;
+    }
+
+    /* Support section */
+    .support-section {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 20px;
+      padding: 40px 32px;
+      max-width: 400px;
+      margin: 0 auto 40px;
+    }
+
+    .support-icon {
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(45deg, #8b5cf6, #3b82f6);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 16px;
+      font-size: 24px;
+    }
+
+    .support-title {
+      font-size: 1.2rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: white;
+    }
+
+    .support-desc {
+      color: #94a3b8;
+      margin-bottom: 16px;
+      line-height: 1.5;
+    }
+
+    .support-link {
+      color: #a78bfa;
+      text-decoration: none;
+      font-weight: 500;
+      transition: color 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .support-link:hover {
+      color: #c4b5fd;
+    }
+
+    /* Install prompt */
+    .install-prompt {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      right: 20px;
+      max-width: 320px;
+      margin-left: auto;
+      background: linear-gradient(45deg, rgba(139, 92, 246, 0.9), rgba(236, 72, 153, 0.9));
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 16px;
+      padding: 16px;
+      color: white;
+      font-size: 14px;
+    }
+
+    .install-content {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .install-icon {
+      width: 32px;
+      height: 32px;
+      background: rgba(255, 255, 255, 0.2);
       border-radius: 8px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 16px;
+    }
+
+    .install-text {
+      flex: 1;
+    }
+
+    .install-title {
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+
+    .install-desc {
+      opacity: 0.9;
+      font-size: 12px;
+    }
+
+    /* Responsive design */
+    @media (max-width: 768px) {
+      .offline-text .glitch-bg,
+      .offline-text .main-text {
+        font-size: 4rem;
+      }
+
+      .subtitle {
+        font-size: 1.5rem;
+      }
+
+      .description {
+        font-size: 1rem;
+      }
+
+      .features-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .install-prompt {
+        left: 16px;
+        right: 16px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .offline-text .glitch-bg,
+      .offline-text .main-text {
+        font-size: 3rem;
+      }
+
+      .container {
+        padding: 16px;
+      }
+
+      .feature-card,
+      .support-section {
+        padding: 24px 20px;
+      }
+    }
+
+    /* Loading spinner */
+    .spinner {
+      width: 20px;
+      height: 20px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top: 2px solid white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
     }
   </style>
 </head>
 <body>
-  <div class="offline-container">
-    <h1>You're Offline</h1>
-    <p>This app requires an internet connection.</p>
-    <p>Some features may be limited.</p>
-    <button onclick="window.location.reload()">Retry Connection</button>
+  <!-- Animated background elements -->
+  <div class="bg-element"></div>
+  <div class="bg-element"></div>
+  <div class="bg-element"></div>
+
+  <!-- Mouse follow glow effect -->
+  <div class="mouse-glow" id="mouseGlow"></div>
+
+  <!-- Network status indicator -->
+  <div class="status-indicator status-offline" id="statusIndicator">
+    <div class="status-dot offline" id="statusDot"></div>
+    <span id="statusText">Offline</span>
   </div>
+
+  <!-- Main content -->
+  <div class="container">
+    <div class="content">
+      <!-- Hero section -->
+      <div class="hero">
+        <div class="offline-text">
+          <div class="glitch-bg">OFFLINE</div>
+          <div class="glitch-bg">OFFLINE</div>
+          <div class="main-text">OFFLINE</div>
+        </div>
+        
+        <h2 class="subtitle">You're Currently Offline</h2>
+        <p class="description">
+          No internet connection detected. Some features may be limited while offline, but you can still access cached content and basic functionality.
+        </p>
+        
+        <button class="retry-btn" onclick="retryConnection()">
+          <div class="spinner" id="spinner" style="display: none;"></div>
+          <span id="retryText">🔄 Try Again</span>
+        </button>
+      </div>
+
+      <!-- Features grid -->
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon offline">📱</div>
+          <h3 class="feature-title">Works Offline</h3>
+          <p class="feature-desc">Access cached content and essential features even without internet</p>
+        </div>
+        
+        <div class="feature-card">
+          <div class="feature-icon fast">⚡</div>
+          <h3 class="feature-title">Lightning Fast</h3>
+          <p class="feature-desc">Optimized for speed and performance on any device</p>
+        </div>
+        
+        <div class="feature-card">
+          <div class="feature-icon mobile">📱</div>
+          <h3 class="feature-title">Mobile Ready</h3>
+          <p class="feature-desc">Perfect experience across all screen sizes and devices</p>
+        </div>
+      </div>
+
+      <!-- Support section -->
+      <div class="support-section">
+        <div class="support-icon">✉️</div>
+        <h3 class="support-title">Need Help?</h3>
+        <p class="support-desc">Our support team is here to help you get back online</p>
+        <a href="mailto:support@ems.com" class="support-link">
+          📧 support@ems.com
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Install prompt -->
+  <div class="install-prompt">
+    <div class="install-content">
+      <div class="install-icon">🏠</div>
+      <div class="install-text">
+        <div class="install-title">Install EMS</div>
+        <div class="install-desc">Add to home screen for quick access</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let isOnline = navigator.onLine;
+    let retryTimeout = null;
+
+    // Mouse follow effect
+    document.addEventListener('mousemove', (e) => {
+      const mouseGlow = document.getElementById('mouseGlow');
+      mouseGlow.style.left = (e.clientX - 200) + 'px';
+      mouseGlow.style.top = (e.clientY - 200) + 'px';
+    });
+
+    // Network status handlers
+    function updateNetworkStatus(online) {
+      const indicator = document.getElementById('statusIndicator');
+      const dot = document.getElementById('statusDot');
+      const text = document.getElementById('statusText');
+
+      if (online) {
+        indicator.className = 'status-indicator status-online';
+        dot.className = 'status-dot online';
+        text.textContent = 'Online';
+        
+        // Auto-reload after a short delay when back online
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      } else {
+        indicator.className = 'status-indicator status-offline';
+        dot.className = 'status-dot offline';
+        text.textContent = 'Offline';
+      }
+    }
+
+    // Retry connection function
+    function retryConnection() {
+      const spinner = document.getElementById('spinner');
+      const retryText = document.getElementById('retryText');
+      
+      spinner.style.display = 'block';
+      retryText.textContent = 'Checking...';
+      
+      // Clear any existing timeout
+      if (retryTimeout) {
+        clearTimeout(retryTimeout);
+      }
+      
+      // Simulate checking connection
+      retryTimeout = setTimeout(() => {
+        if (navigator.onLine) {
+          retryText.textContent = '✅ Connected!';
+          setTimeout(() => {
+            window.location.reload();
+          }, 1000);
+        } else {
+          retryText.textContent = '❌ Still Offline';
+          setTimeout(() => {
+            spinner.style.display = 'none';
+            retryText.textContent = '🔄 Try Again';
+          }, 2000);
+        }
+      }, 2000);
+    }
+
+    // Event listeners
+    window.addEventListener('online', () => {
+      isOnline = true;
+      updateNetworkStatus(true);
+    });
+
+    window.addEventListener('offline', () => {
+      isOnline = false;
+      updateNetworkStatus(false);
+    });
+
+    // Initialize
+    updateNetworkStatus(isOnline);
+
+    // Add some interactive animations
+    document.addEventListener('DOMContentLoaded', () => {
+      // Stagger animation for feature cards
+      const cards = document.querySelectorAll('.feature-card');
+      cards.forEach((card, index) => {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(20px)';
+        
+        setTimeout(() => {
+          card.style.transition = 'all 0.6s ease';
+          card.style.opacity = '1';
+          card.style.transform = 'translateY(0)';
+        }, 500 + (index * 200));
+      });
+    });
+  </script>
 </body>
 </html>

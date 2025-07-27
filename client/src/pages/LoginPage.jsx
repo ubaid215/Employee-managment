@@ -1,16 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+
 import { Lock, Mail, AlertCircle, Loader2 } from 'lucide-react';
 
 const LoginPage = () => {
-  const { login, isAuthenticating, error, isAdmin } = useAuth();
+  const { login, isAuthenticating, error, isAdmin, isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  
   const [formData, setFormData] = useState({ 
     email: '', 
     password: '' 
   });
   const [validationError, setValidationError] = useState('');
+
+  // Get the intended destination from location state
+  const from = location.state?.from?.pathname || null;
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -44,12 +50,31 @@ const LoginPage = () => {
 
   // Handle redirection after successful authentication
   useEffect(() => {
-    if (isAdmin()) {
-      navigate('/admin/dashboard');
-    } else if (isAuthenticating === false && !error) {
-      navigate('/employee/dashboard');
+  console.log('🔍 Checking auth state:', {
+    isAuthenticated,
+    user,
+    isAuthenticating,
+    from
+  });
+
+  if (isAuthenticated && user && !isAuthenticating) {
+    if (from && from !== '/login') {
+      navigate(from, { replace: true });
+    } else {
+      if (isAdmin()) {
+        navigate('/admin', { replace: true });
+      } else {
+        navigate('/', { replace: true });
+      }
     }
-  }, [isAuthenticating, error, navigate, isAdmin]);
+  }
+}, [isAuthenticated, user, isAuthenticating, navigate, from, isAdmin]);
+
+
+  // Don't render login form if already authenticated
+  if (isAuthenticated()) {
+    return null;
+  }
 
   const displayError = validationError || error;
 

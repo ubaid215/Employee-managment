@@ -8,7 +8,7 @@ import {
 
 const Salary = () => {
   const { 
-    salaryRecords, 
+    salaryRecords = [], // Default to empty array
     fetchSalaryRecords, 
     downloadSalaryPDF,
     loading 
@@ -37,17 +37,22 @@ const Salary = () => {
     setSortConfig({ key, direction });
   };
 
-  const sortedRecords = [...salaryRecords].sort((a, b) => {
-    if (a[sortConfig.key] < b[sortConfig.key]) {
+  const sortedRecords = [...(salaryRecords || [])].sort((a, b) => {
+    // Add null checks for sort properties
+    const aValue = a?.[sortConfig.key] || '';
+    const bValue = b?.[sortConfig.key] || '';
+    
+    if (aValue < bValue) {
       return sortConfig.direction === 'asc' ? -1 : 1;
     }
-    if (a[sortConfig.key] > b[sortConfig.key]) {
+    if (aValue > bValue) {
       return sortConfig.direction === 'asc' ? 1 : -1;
     }
     return 0;
   });
 
   const filteredRecords = sortedRecords.filter(record => {
+    if (!record) return false;
     if (filter === 'all') return true;
     return record.status === filter;
   });
@@ -80,6 +85,15 @@ const Salary = () => {
     }
   };
 
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    try {
+      return new Date(dateString).toLocaleDateString();
+    } catch {
+      return 'Invalid Date';
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6">
       <div className="max-w-6xl mx-auto">
@@ -93,7 +107,7 @@ const Salary = () => {
             <select
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
-              className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="bg-white border cursor-pointer border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">All Statuses</option>
               <option value="paid">Paid</option>
@@ -103,11 +117,11 @@ const Salary = () => {
           </div>
         </div>
 
-        {loading && !salaryRecords.length ? (
+        {loading ? (
           <div className="bg-white rounded-xl shadow-sm p-8 flex justify-center border border-gray-100">
             <Loader2 size={32} className="animate-spin text-blue-500" />
           </div>
-        ) : salaryRecords.length === 0 ? (
+        ) : !filteredRecords?.length ? (
           <div className="bg-white rounded-xl shadow-sm p-8 text-center border border-gray-100">
             <FileText size={48} className="mx-auto text-gray-300 mb-4" />
             <h3 className="text-lg font-medium text-gray-900">No salary records found</h3>
@@ -176,20 +190,22 @@ const Salary = () => {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredRecords.map((record) => (
-                    <tr key={record._id} className="hover:bg-gray-50">
+                    <tr key={record?._id || Math.random()} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">{record.month}</div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {record?.month || 'N/A'}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-500">
-                          {new Date(record.paidOn).toLocaleDateString()}
+                          {formatDate(record?.paidOn)}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">
-                          ${record.amount.toLocaleString()}
+                          ${(record?.amount || 0).toLocaleString()}
                         </div>
-                        {record.advanceAmount > 0 && (
+                        {(record?.advanceAmount || 0) > 0 && (
                           <div className="text-xs text-gray-500">
                             (Advance: ${record.advanceAmount.toLocaleString()})
                           </div>
@@ -197,19 +213,20 @@ const Salary = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
-                          {record.type === 'advance' ? 'Advance' : 'Full'}
+                          {record?.type === 'advance' ? 'Advance' : 'Full'}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={getStatusBadge(record.status)}>
-                          {getStatusIcon(record.status)}
-                          {record.status.charAt(0).toUpperCase() + record.status.slice(1)}
+                        <span className={getStatusBadge(record?.status)}>
+                          {getStatusIcon(record?.status)}
+                          {record?.status?.charAt(0).toUpperCase() + record?.status?.slice(1)}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <button
-                          onClick={() => handleDownloadPDF(record._id)}
+                          onClick={() => handleDownloadPDF(record?._id)}
                           className="text-blue-600 hover:text-blue-900 flex items-center justify-end gap-1 w-full"
+                          disabled={!record?._id}
                         >
                           <Download size={16} />
                           <span className="hidden md:inline">PDF</span>
@@ -224,30 +241,30 @@ const Salary = () => {
             {/* Mobile View */}
             <div className="md:hidden">
               {filteredRecords.map((record) => (
-                <div key={record._id} className="p-4 border-b border-gray-200">
+                <div key={record?._id || Math.random()} className="p-4 border-b border-gray-200">
                   <div className="flex justify-between items-start">
                     <div>
-                      <h3 className="text-sm font-medium text-gray-900">{record.month}</h3>
+                      <h3 className="text-sm font-medium text-gray-900">{record?.month || 'N/A'}</h3>
                       <p className="text-xs text-gray-500 mt-1">
-                        Paid on {new Date(record.paidOn).toLocaleDateString()}
+                        Paid on {formatDate(record?.paidOn)}
                       </p>
                     </div>
-                    <span className={getStatusBadge(record.status)}>
-                      {getStatusIcon(record.status)}
-                      {record.status.charAt(0).toUpperCase() + record.status.slice(1)}
+                    <span className={getStatusBadge(record?.status)}>
+                      {getStatusIcon(record?.status)}
+                      {record?.status?.charAt(0).toUpperCase() + record?.status?.slice(1)}
                     </span>
                   </div>
                   
                   <div className="mt-2">
                     <div className="flex justify-between">
                       <span className="text-sm font-medium">
-                        ${record.amount.toLocaleString()}
+                        ${(record?.amount || 0).toLocaleString()}
                       </span>
                       <span className="text-xs text-gray-500">
-                        {record.type === 'advance' ? 'Advance' : 'Full Payment'}
+                        {record?.type === 'advance' ? 'Advance' : 'Full Payment'}
                       </span>
                     </div>
-                    {record.advanceAmount > 0 && (
+                    {(record?.advanceAmount || 0) > 0 && (
                       <div className="text-xs text-gray-500 mt-1">
                         Advance: ${record.advanceAmount.toLocaleString()}
                       </div>
@@ -256,8 +273,9 @@ const Salary = () => {
                   
                   <div className="mt-3 flex justify-end">
                     <button
-                      onClick={() => handleDownloadPDF(record._id)}
+                      onClick={() => handleDownloadPDF(record?._id)}
                       className="text-blue-600 hover:text-blue-900 flex items-center gap-1 text-sm"
+                      disabled={!record?._id}
                     >
                       <Download size={14} />
                       Download PDF

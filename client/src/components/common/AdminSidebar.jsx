@@ -4,7 +4,7 @@ import {
   Calendar, DollarSign, Clock,
   PieChart, Settings, LogOut
 } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 
 const AdminSidebar = () => {
   const { logout } = useAuth();
@@ -13,11 +13,9 @@ const AdminSidebar = () => {
   const navItems = [
     { path: '/admin', icon: Home, label: 'Dashboard' },
     { path: '/admin/employees', icon: Users, label: 'Employees' },
-    { path: '/admin/departments', icon: Briefcase, label: 'Departments' },
-    { path: '/admin/leaves', icon: Calendar, label: 'Leave Requests' },
-    { path: '/admin/salaries', icon: DollarSign, label: 'Salaries' },
-    { path: '/admin/attendance', icon: Clock, label: 'Attendance' },
-    { path: '/admin/analytics', icon: PieChart, label: 'Analytics' },
+    { path: '/admin/departments', icon: Briefcase, label: 'Department' },
+    { path: '/admin/leaves-manage', icon: Calendar, label: 'Leave Requests' },
+    { path: '/admin/add-salary', icon: DollarSign, label: 'Salaries' },
     { path: '/admin/settings', icon: Settings, label: 'Settings' }
   ];
 

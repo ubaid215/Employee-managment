@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { 
   Briefcase, Calendar, DollarSign, 
   ArrowRight, Clock, CheckCircle, 
-  XCircle, AlertCircle, Loader2 
+  XCircle, AlertCircle, Loader2, User 
 } from 'lucide-react';
 
 const EmployeeDashboard = () => {
@@ -22,10 +22,10 @@ const EmployeeDashboard = () => {
   const { user } = useAuth();
 
   useEffect(() => {
-    fetchMyDuties();
-    fetchLeaves();
-    fetchSalaryRecords();
-  }, [fetchMyDuties, fetchLeaves, fetchSalaryRecords]);
+  fetchMyDuties();
+  fetchLeaves();
+  fetchSalaryRecords();
+}, []);
 
   const getStatusIcon = (status) => {
     switch(status) {
@@ -113,11 +113,11 @@ const EmployeeDashboard = () => {
                 <div className="flex justify-center py-4">
                   <Loader2 size={20} className="animate-spin text-gray-400" />
                 </div>
-              ) : duties?.length === 0 ? (
+              ) : (duties || []).length === 0 ? (
                 <p className="text-center text-gray-500 py-4">No duties assigned</p>
               ) : (
                 <div className="space-y-4">
-                  {duties.slice(0, 3).map(duty => (
+                  {(duties || []).slice(0, 3).map(duty => (
                     <div key={duty._id} className="flex items-start gap-3 p-2 hover:bg-gray-50 rounded-lg">
                       <div className="flex-shrink-0 mt-1">
                         <Briefcase size={16} className="text-gray-400" />
@@ -157,11 +157,11 @@ const EmployeeDashboard = () => {
                 <div className="flex justify-center py-4">
                   <Loader2 size={20} className="animate-spin text-gray-400" />
                 </div>
-              ) : leaves?.length === 0 ? (
+              ) : (leaves || []).length === 0 ? (
                 <p className="text-center text-gray-500 py-4">No leave records</p>
               ) : (
                 <div className="space-y-4">
-                  {leaves.slice(0, 3).map(leave => (
+                  {(leaves || []).slice(0, 3).map(leave => (
                     <div key={leave._id} className="flex items-start gap-3 p-2 hover:bg-gray-50 rounded-lg">
                       <div className="flex-shrink-0 mt-1">
                         {getStatusIcon(leave.status)}
@@ -200,11 +200,11 @@ const EmployeeDashboard = () => {
                 <div className="flex justify-center py-4">
                   <Loader2 size={20} className="animate-spin text-gray-400" />
                 </div>
-              ) : salaryRecords?.length === 0 ? (
+              ) : (salaryRecords || []).length === 0 ? (
                 <p className="text-center text-gray-500 py-4">No salary records</p>
               ) : (
                 <div className="space-y-4">
-                  {salaryRecords.slice(0, 3).map(salary => (
+                  {(salaryRecords || []).slice(0, 3).map(salary => (
                     <div key={salary._id} className="flex items-start gap-3 p-2 hover:bg-gray-50 rounded-lg">
                       <div className="flex-shrink-0 mt-1">
                         <DollarSign size={16} className="text-gray-400" />

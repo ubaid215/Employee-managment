@@ -5,25 +5,35 @@ import LoginPage from '../pages/LoginPage';
 import RegisterPage from '../pages/RegisterPage';
 import EmployeeDashboard from '../pages/employee/EmployeeDashboard';
 import AdminDashboard from '../pages/admin/AdminDashboard';
-import EmployeeProfile from '../pages/EmployeeProfile';
+import EmployeeProfile from '../pages/employee/EmployeeProfile';
 import Leave from '../pages/employee/Leave';
 import Salary from '../pages/employee/Salary';
 import Duty from '../pages/employee/Duty';
-import DepartmentHistory from '../pages/admin/DepartmentHistory';
-import DepartmentPage from '../pages/admin/DepartmentPage';
-import LeaveAnalytics from '../pages/admin/LeaveAnalytics';
+import Department from '../pages/admin/Department';
 import ForgotPasswordPage from '../pages/ForgotPasswordPage';
 import ResetPasswordPage from '../pages/ResetPasswordPage';
 import AccountPending from '../pages/AccountPending';
-import PageNotFound from '../pages/PageNotFound';
+import NotFound from '../pages/NotFound';
 import EmployeeLayout from '../pages/employee/EmployeeLayout';
 import AdminLayout from '../pages/admin/AdminLayout';
 import AuthLayout from '../pages/AuthLayout';
+import GiveSalary from '../pages/admin/GiveSalary';
+import LeavesManage from '../pages/admin/LeavesManage';
+import Settings from '../pages/admin/Settings';
+import LoadingScreen from '../components/common/LoadingScreen'; 
+import { useAuth } from '../context/AuthContext';
 
 const Router = () => {
+  const { loading } = useAuth();
+
+  // Show loading screen while auth is initializing
+  if (loading) {
+    return <LoadingScreen />;
+  }
+
   return (
     <Routes>
-      {/* Auth Routes */}
+      {/* Public Auth Routes */}
       <Route element={<AuthLayout />}>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
@@ -32,89 +42,40 @@ const Router = () => {
         <Route path="/account-pending" element={<AccountPending />} />
       </Route>
 
-      {/* Employee Routes */}
-      <Route element={<EmployeeLayout />}>
-        <Route 
-          path="/" 
-          element={
-            <ProtectedRoute>
-              <EmployeeDashboard />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/profile" 
-          element={
-            <ProtectedRoute>
-              <EmployeeProfile />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/leave" 
-          element={
-            <ProtectedRoute>
-              <Leave />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/salary" 
-          element={
-            <ProtectedRoute>
-              <Salary />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/duties" 
-          element={
-            <ProtectedRoute>
-              <Duty />
-            </ProtectedRoute>
-          } 
-        />
-       
+      {/* Protected Employee Routes */}
+      <Route 
+        path="/" 
+        element={
+          <ProtectedRoute>
+            <EmployeeLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<EmployeeDashboard />} />
+        <Route path="profile" element={<EmployeeProfile />} />
+        <Route path="leave" element={<Leave />} />
+        <Route path="salary" element={<Salary />} />
+        <Route path="duties" element={<Duty />} />
       </Route>
 
-      {/* Admin Routes */}
-      <Route element={<AdminLayout />}>
-        <Route 
-          path="/admin" 
-          element={
-            <ProtectedRoute requiredRole="admin">
-              <AdminDashboard />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/admin/departments" 
-          element={
-            <ProtectedRoute requiredRole="admin">
-              <DepartmentPage />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/admin/department-history/:id" 
-          element={
-            <ProtectedRoute requiredRole="admin">
-              <DepartmentHistory />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/admin/leave-analytics" 
-          element={
-            <ProtectedRoute requiredRole="admin">
-              <LeaveAnalytics />
-            </ProtectedRoute>
-          } 
-        />
+      {/* Protected Admin Routes */}
+      <Route 
+        path="/admin" 
+        element={
+          <ProtectedRoute requiredRole="admin">
+            <AdminLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<AdminDashboard />} />
+        <Route path="departments" element={<Department />} />
+        <Route path="add-salary" element={<GiveSalary />} />
+        <Route path="leave-manage" element={<LeavesManage />} />
+        <Route path="settings" element={<Settings />} />
       </Route>
 
       {/* Fallback Routes */}
-      <Route path="/404" element={<PageNotFound />} />
+      <Route path="/404" element={<NotFound />} />
       <Route path="*" element={<Navigate to="/404" replace />} />
     </Routes>
   );

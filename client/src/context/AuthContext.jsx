@@ -1,6 +1,5 @@
-/* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useEffect, useState } from 'react';
-import { authService, employeeService } from '../services/apiServices';
+import { createContext, useContext, useEffect, useState } from "react";
+import { authService, employeeService } from "../services/apiServices";
 
 const AuthContext = createContext();
 
@@ -10,11 +9,11 @@ export const AuthProvider = ({ children }) => {
   const [error, setError] = useState(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
-  // Initialize auth state and fetch profile
+  // Initialize auth state
   useEffect(() => {
     const initializeAuth = async () => {
       try {
-        const token = localStorage.getItem('token');
+        const token = localStorage.getItem("token");
         if (token) {
           await fetchProfile();
         }
@@ -28,13 +27,13 @@ export const AuthProvider = ({ children }) => {
     initializeAuth();
   }, []);
 
-  // Fetch user profile using /me endpoint
+  // Fetch user profile
   const fetchProfile = async () => {
     try {
       const { data } = await employeeService.getProfile();
-      setUser(data.employee);
+      setUser(data);
       setError(null);
-      return data.employee;
+      return data;
     } catch (err) {
       handleAuthError(err);
       throw err;
@@ -43,12 +42,12 @@ export const AuthProvider = ({ children }) => {
 
   // Handle authentication errors
   const handleAuthError = (err) => {
-    console.error('Auth error:', err);
+    console.error("Auth error:", err);
     const errorMessage = err.response?.data?.message || 
                         err.message || 
-                        'Authentication failed';
+                        "Authentication failed";
     setError(errorMessage);
-    localStorage.removeItem('token');
+    localStorage.removeItem("token");
     setUser(null);
     return errorMessage;
   };
@@ -58,7 +57,7 @@ export const AuthProvider = ({ children }) => {
     setIsAuthenticating(true);
     try {
       const { data } = await authService.login({ email, password });
-      localStorage.setItem('token', data.token);
+      localStorage.setItem("token", data.token);
       const profile = await fetchProfile();
       return profile;
     } catch (err) {
@@ -74,19 +73,67 @@ export const AuthProvider = ({ children }) => {
     try {
       await authService.logout();
     } catch (err) {
-      console.error('Logout error:', err);
+      console.error("Logout error:", err);
     } finally {
-      localStorage.removeItem('token');
+      localStorage.removeItem("token");
       setUser(null);
       setError(null);
     }
   };
 
+  // Update profile with image handling
+  const updateProfile = async (profileData, profileImage) => {
+  setIsAuthenticating(true);
+  try {
+    let updatedData = { ...profileData };
+    let imageUrl = null;
+
+    // Handle image upload if provided
+    if (profileImage) {
+      try {
+        const uploadResponse = await employeeService.uploadProfileImage(profileImage);
+        imageUrl = uploadResponse.data.imageUrl;
+        updatedData.profile = {
+          ...updatedData.profile,
+          profileImage: imageUrl
+        };
+      } catch (uploadError) {
+        console.error('Image upload failed:', uploadError);
+        throw new Error(
+          uploadError.response?.data?.message || 
+          'Failed to upload profile image'
+        );
+      }
+    }
+
+    // Update profile data
+    const { data } = await employeeService.updateProfile(updatedData);
+    
+    // Update local state
+    setUser(prev => ({
+      ...prev,
+      ...data,
+      profile: {
+        ...prev?.profile,
+        ...data?.profile,
+        profileImage: imageUrl || prev?.profile?.profileImage
+      }
+    }));
+
+    return data;
+  } catch (err) {
+    const message = err.response?.data?.message || err.message || 'Profile update failed';
+    setError(message);
+    throw new Error(message);
+  } finally {
+    setIsAuthenticating(false);
+  }
+};
+
   // Update password
   const updatePassword = async (currentPassword, newPassword) => {
     try {
       await authService.updatePassword(currentPassword, newPassword);
-      // Re-fetch profile after password change
       await fetchProfile();
     } catch (err) {
       const message = handleAuthError(err);
@@ -98,7 +145,6 @@ export const AuthProvider = ({ children }) => {
   const updateEmail = async (newEmail, password) => {
     try {
       await authService.updateEmail(newEmail, password);
-      // Re-fetch profile after email change
       await fetchProfile();
     } catch (err) {
       const message = handleAuthError(err);
@@ -128,12 +174,12 @@ export const AuthProvider = ({ children }) => {
 
   // Check authentication status
   const isAuthenticated = () => {
-    return !!user && !!localStorage.getItem('token');
+    return !!user && !!localStorage.getItem("token");
   };
 
   // Check admin status
   const isAdmin = () => {
-    return isAuthenticated() && user?.role === 'admin';
+    return isAuthenticated() && user?.role === "admin";
   };
 
   const value = {
@@ -143,18 +189,19 @@ export const AuthProvider = ({ children }) => {
     isAuthenticating,
     login,
     logout,
+    updateProfile,
     updatePassword,
     updateEmail,
     resetPassword,
     forgotPassword,
     fetchProfile,
-    isAuthenticated: isAuthenticated(),
-    isAdmin: isAdmin()
+    isAuthenticated,
+    isAdmin,
   };
 
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
 };
@@ -162,7 +209,7 @@ export const AuthProvider = ({ children }) => {
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 };
