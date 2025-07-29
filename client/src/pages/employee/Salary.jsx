@@ -3,12 +3,13 @@ import { useEmployee } from '../../context/EmployeeContext';
 import { 
   Download, FileText, DollarSign, 
   Calendar, CheckCircle, Clock, 
-  AlertCircle, Loader2 
+  AlertCircle, Loader2, ChevronDown,
+  ChevronUp, ArrowDown, ArrowUp
 } from 'lucide-react';
 
 const Salary = () => {
   const { 
-    salaryRecords = [], // Default to empty array
+    salaryRecords = [], 
     fetchSalaryRecords, 
     downloadSalaryPDF,
     loading 
@@ -37,8 +38,7 @@ const Salary = () => {
     setSortConfig({ key, direction });
   };
 
-  const sortedRecords = [...(salaryRecords || [])].sort((a, b) => {
-    // Add null checks for sort properties
+  const sortedRecords = [...salaryRecords].sort((a, b) => {
     const aValue = a?.[sortConfig.key] || '';
     const bValue = b?.[sortConfig.key] || '';
     
@@ -52,34 +52,33 @@ const Salary = () => {
   });
 
   const filteredRecords = sortedRecords.filter(record => {
-    if (!record) return false;
     if (filter === 'all') return true;
     return record.status === filter;
   });
 
   const getStatusBadge = (status) => {
-    const baseClasses = "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium";
+    const baseClasses = "inline-flex items-center px-3 py-1 rounded-full text-xs font-medium";
     
     switch(status) {
       case 'paid':
-        return `${baseClasses} bg-green-100 text-green-800`;
+        return `${baseClasses} bg-emerald-100 text-emerald-800`;
       case 'pending':
-        return `${baseClasses} bg-yellow-100 text-yellow-800`;
+        return `${baseClasses} bg-amber-100 text-amber-800`;
       case 'partial':
         return `${baseClasses} bg-blue-100 text-blue-800`;
       default:
-        return `${baseClasses} bg-gray-100 text-gray-800`;
+        return `${baseClasses} bg-slate-100 text-slate-800`;
     }
   };
 
   const getStatusIcon = (status) => {
     switch(status) {
       case 'paid':
-        return <CheckCircle size={14} className="mr-1" />;
+        return <CheckCircle size={14} className="mr-1.5 text-emerald-500" />;
       case 'pending':
-        return <Clock size={14} className="mr-1" />;
+        return <Clock size={14} className="mr-1.5 text-amber-500" />;
       case 'partial':
-        return <AlertCircle size={14} className="mr-1" />;
+        return <AlertCircle size={14} className="mr-1.5 text-blue-500" />;
       default:
         return null;
     }
@@ -88,26 +87,32 @@ const Salary = () => {
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     try {
-      return new Date(dateString).toLocaleDateString();
+      return new Date(dateString).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
     } catch {
       return 'Invalid Date';
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-4 md:p-6">
+      <div className="max-w-7xl mx-auto">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <DollarSign size={24} className="text-green-500" />
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent flex items-center gap-3">
+            <div className="p-2 bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg">
+              <DollarSign size={24} className="text-white" />
+            </div>
             Salary Records
           </h1>
           
-          <div className="flex gap-2">
+          <div className="flex gap-3">
             <select
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
-              className="bg-white border cursor-pointer border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-sm hover:shadow-md transition-all"
             >
               <option value="all">All Statuses</option>
               <option value="paid">Paid</option>
@@ -118,118 +123,122 @@ const Salary = () => {
         </div>
 
         {loading ? (
-          <div className="bg-white rounded-xl shadow-sm p-8 flex justify-center border border-gray-100">
+          <div className="bg-white rounded-2xl shadow-lg p-8 flex justify-center border border-slate-200/60 backdrop-blur-sm">
             <Loader2 size={32} className="animate-spin text-blue-500" />
           </div>
         ) : !filteredRecords?.length ? (
-          <div className="bg-white rounded-xl shadow-sm p-8 text-center border border-gray-100">
-            <FileText size={48} className="mx-auto text-gray-300 mb-4" />
-            <h3 className="text-lg font-medium text-gray-900">No salary records found</h3>
-            <p className="mt-1 text-gray-500">Your salary records will appear here once available</p>
+          <div className="bg-white rounded-2xl shadow-lg p-8 text-center border border-slate-200/60 backdrop-blur-sm">
+            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <FileText size={32} className="text-slate-400" />
+            </div>
+            <h3 className="text-lg font-medium text-slate-800 mb-2">No salary records found</h3>
+            <p className="text-slate-500">Your salary records will appear here once available</p>
           </div>
         ) : (
-          <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+          <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-slate-200/60 backdrop-blur-sm">
+            {/* Desktop Table */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-200">
+                <thead className="bg-slate-50">
                   <tr>
                     <th 
                       scope="col" 
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors"
                       onClick={() => requestSort('month')}
                     >
-                      <div className="flex items-center">
-                        <Calendar size={14} className="mr-2" />
-                        Month
+                      <div className="flex items-center gap-2">
+                        <Calendar size={16} className="text-slate-400" />
+                        <span>Month</span>
                         {sortConfig.key === 'month' && (
-                          <span className="ml-1">
-                            {sortConfig.direction === 'asc' ? '↑' : '↓'}
-                          </span>
+                          sortConfig.direction === 'asc' ? 
+                            <ChevronUp size={14} className="text-slate-500" /> : 
+                            <ChevronDown size={14} className="text-slate-500" />
                         )}
                       </div>
                     </th>
                     <th 
                       scope="col" 
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors"
                       onClick={() => requestSort('paidOn')}
                     >
-                      <div className="flex items-center">
-                        Paid On
+                      <div className="flex items-center gap-2">
+                        <span>Paid On</span>
                         {sortConfig.key === 'paidOn' && (
-                          <span className="ml-1">
-                            {sortConfig.direction === 'asc' ? '↑' : '↓'}
-                          </span>
+                          sortConfig.direction === 'asc' ? 
+                            <ChevronUp size={14} className="text-slate-500" /> : 
+                            <ChevronDown size={14} className="text-slate-500" />
                         )}
                       </div>
                     </th>
                     <th 
                       scope="col" 
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors"
                       onClick={() => requestSort('amount')}
                     >
-                      <div className="flex items-center">
-                        <DollarSign size={14} className="mr-2" />
-                        Amount
+                      <div className="flex items-center gap-2">
+                        <DollarSign size={16} className="text-slate-400" />
+                        <span>Amount</span>
                         {sortConfig.key === 'amount' && (
-                          <span className="ml-1">
-                            {sortConfig.direction === 'asc' ? '↑' : '↓'}
-                          </span>
+                          sortConfig.direction === 'asc' ? 
+                            <ChevronUp size={14} className="text-slate-500" /> : 
+                            <ChevronDown size={14} className="text-slate-500" />
                         )}
                       </div>
                     </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                       Type
                     </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                       Status
                     </th>
-                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th scope="col" className="px-6 py-4 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
                       Actions
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white divide-y divide-slate-200">
                   {filteredRecords.map((record) => (
-                    <tr key={record?._id || Math.random()} className="hover:bg-gray-50">
+                    <tr key={record._id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">
-                          {record?.month || 'N/A'}
+                        <div className="text-sm font-medium text-slate-800">
+                          {record.month || 'N/A'}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-500">
-                          {formatDate(record?.paidOn)}
+                        <div className="text-sm text-slate-600">
+                          {formatDate(record.paidOn)}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">
-                          Pkr{(record?.amount || 0).toLocaleString()}
+                        <div className="text-sm font-bold text-slate-800">
+                          ₨{(record.amount || 0).toLocaleString()}
                         </div>
-                        {(record?.advanceAmount || 0) > 0 && (
-                          <div className="text-xs text-gray-500">
-                            (Advance: Pkr{record.advanceAmount.toLocaleString()})
+                        {(record.advanceAmount || 0) > 0 && (
+                          <div className="text-xs text-slate-500 mt-1">
+                            (Advance: ₨{record.advanceAmount.toLocaleString()})
                           </div>
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
-                          {record?.type === 'advance' ? 'Advance' : 'Full'}
+                        <span className={`px-3 py-1 text-xs font-medium rounded-full ${
+                          record.type === 'advance' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
+                        }`}>
+                          {record.type === 'advance' ? 'Advance' : 'Full'}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={getStatusBadge(record?.status)}>
-                          {getStatusIcon(record?.status)}
-                          {record?.status?.charAt(0).toUpperCase() + record?.status?.slice(1)}
+                        <span className={getStatusBadge(record.status)}>
+                          {getStatusIcon(record.status)}
+                          {record.status?.charAt(0).toUpperCase() + record.status?.slice(1)}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <button
-                          onClick={() => handleDownloadPDF(record?._id)}
-                          className="text-blue-600 hover:text-blue-900 flex items-center justify-end gap-1 w-full"
-                          disabled={!record?._id}
+                          onClick={() => handleDownloadPDF(record._id)}
+                          className="text-blue-600 hover:text-blue-800 flex items-center justify-end gap-2 w-full px-3 py-1.5 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
                         >
                           <Download size={16} />
-                          <span className="hidden md:inline">PDF</span>
+                          <span>PDF</span>
                         </button>
                       </td>
                     </tr>
@@ -238,46 +247,47 @@ const Salary = () => {
               </table>
             </div>
 
-            {/* Mobile View */}
-            <div className="md:hidden">
+            {/* Mobile Cards */}
+            <div className="md:hidden divide-y divide-slate-200">
               {filteredRecords.map((record) => (
-                <div key={record?._id || Math.random()} className="p-4 border-b border-gray-200">
+                <div key={record._id} className="p-4 hover:bg-slate-50/50 transition-colors">
                   <div className="flex justify-between items-start">
                     <div>
-                      <h3 className="text-sm font-medium text-gray-900">{record?.month || 'N/A'}</h3>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Paid on {formatDate(record?.paidOn)}
+                      <h3 className="text-sm font-bold text-slate-800">{record.month || 'N/A'}</h3>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Paid on {formatDate(record.paidOn)}
                       </p>
                     </div>
-                    <span className={getStatusBadge(record?.status)}>
-                      {getStatusIcon(record?.status)}
-                      {record?.status?.charAt(0).toUpperCase() + record?.status?.slice(1)}
+                    <span className={getStatusBadge(record.status)}>
+                      {getStatusIcon(record.status)}
+                      {record.status?.charAt(0).toUpperCase() + record.status?.slice(1)}
                     </span>
                   </div>
                   
-                  <div className="mt-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm font-medium">
-                        Pkr{(record?.amount || 0).toLocaleString()}
+                  <div className="mt-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-lg font-bold text-slate-800">
+                        ₨{(record.amount || 0).toLocaleString()}
                       </span>
-                      <span className="text-xs text-gray-500">
-                        {record?.type === 'advance' ? 'Advance' : 'Full Payment'}
+                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                        record.type === 'advance' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
+                      }`}>
+                        {record.type === 'advance' ? 'Advance' : 'Full Payment'}
                       </span>
                     </div>
-                    {(record?.advanceAmount || 0) > 0 && (
-                      <div className="text-xs text-gray-500 mt-1">
-                        Advance: Pkr{record.advanceAmount.toLocaleString()}
+                    {(record.advanceAmount || 0) > 0 && (
+                      <div className="text-xs text-slate-500 mt-1">
+                        Advance: ₨{record.advanceAmount.toLocaleString()}
                       </div>
                     )}
                   </div>
                   
                   <div className="mt-3 flex justify-end">
                     <button
-                      onClick={() => handleDownloadPDF(record?._id)}
-                      className="text-blue-600 hover:text-blue-900 flex items-center gap-1 text-sm"
-                      disabled={!record?._id}
+                      onClick={() => handleDownloadPDF(record._id)}
+                      className="text-blue-600 hover:text-blue-800 flex items-center gap-2 text-sm px-3 py-1.5 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
                     >
-                      <Download size={14} />
+                      <Download size={16} />
                       Download PDF
                     </button>
                   </div>

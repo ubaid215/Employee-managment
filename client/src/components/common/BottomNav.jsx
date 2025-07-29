@@ -16,20 +16,29 @@ const BottomNav = () => {
   ];
 
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
-      <div className="flex justify-around">
+    <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-sm border-t border-slate-200/60 shadow-lg z-50">
+      <div className="flex justify-around items-stretch">
         {navItems.map((item) => (
           <NavLink
             key={item.path}
             to={item.path}
-            className={`flex flex-col items-center justify-center py-2 px-4 text-xs ${
-              location.pathname === item.path
-                ? 'text-blue-600'
-                : 'text-gray-500'
-            }`}
+            className={({ isActive }) => `
+              flex-1 flex flex-col items-center justify-center py-3 px-2 text-xs
+              transition-all duration-200
+              ${isActive 
+                ? 'text-blue-600 bg-blue-50/50 border-t-2 border-blue-500' 
+                : 'text-slate-600 hover:text-blue-500'
+              }
+            `}
           >
-            <item.icon className="w-5 h-5 mb-1" />
-            <span>{item.label}</span>
+            <div className={`p-2 rounded-full mb-1 transition-colors ${
+              location.pathname === item.path 
+                ? 'bg-blue-100 text-blue-600' 
+                : 'text-slate-500'
+            }`}>
+              <item.icon className="w-5 h-5" />
+            </div>
+            <span className="font-medium">{item.label}</span>
           </NavLink>
         ))}
       </div>

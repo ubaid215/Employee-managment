@@ -6,7 +6,8 @@ import {
   Calendar, Clock, AlertCircle, 
   CheckCircle, XCircle, Send, 
   Loader2, History, Plus,
-  Bell, X, CalendarDays
+  Bell, X, CalendarDays,
+  ChevronDown, ChevronRight
 } from 'lucide-react';
 
 const Leave = () => {
@@ -28,7 +29,6 @@ const Leave = () => {
   const [newStatusUpdates, setNewStatusUpdates] = useState([]);
   const [submitting, setSubmitting] = useState(false);
 
-  // Memoize the fetch function to prevent unnecessary re-renders
   const memoizedFetchLeaves = useCallback(() => {
     if (fetchLeaves && typeof fetchLeaves === 'function') {
       fetchLeaves();
@@ -36,20 +36,12 @@ const Leave = () => {
   }, [fetchLeaves]);
 
   useEffect(() => {
-    // Only fetch leaves once when component mounts
     let mounted = true;
-    
-    if (mounted) {
-      memoizedFetchLeaves();
-    }
-    
-    return () => {
-      mounted = false;
-    };
-  }, []); // Empty dependency array to run only once
+    if (mounted) memoizedFetchLeaves();
+    return () => { mounted = false; };
+  }, []);
 
   useEffect(() => {
-    // Initialize socket connection only if user exists
     if (!user?._id) return;
 
     const newSocket = io(import.meta.env.VITE_API_URL, {
@@ -59,38 +51,25 @@ const Leave = () => {
     
     setSocket(newSocket);
 
-    // Listen for leave status updates
     newSocket.on('leaveStatusUpdate', (update) => {
       if (update.employeeId === user._id) {
         setNewStatusUpdates(prev => [...prev, update]);
-        // Refresh leaves list after a small delay to ensure backend is updated
-        setTimeout(() => {
-          memoizedFetchLeaves();
-        }, 500);
+        setTimeout(() => memoizedFetchLeaves(), 500);
       }
     });
 
-    return () => {
-      newSocket.disconnect();
-    };
+    return () => newSocket.disconnect();
   }, [user?._id, memoizedFetchLeaves]);
 
   useEffect(() => {
-    // Clear notifications after 5 seconds
     if (newStatusUpdates.length === 0) return;
-    
-    const timer = setTimeout(() => {
-      setNewStatusUpdates([]);
-    }, 5000);
-
+    const timer = setTimeout(() => setNewStatusUpdates([]), 5000);
     return () => clearTimeout(timer);
   }, [newStatusUpdates]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-    
-    // Clear validation error when user starts typing
     if (validationErrors[name]) {
       setValidationErrors(prev => ({ ...prev, [name]: '' }));
     }
@@ -116,12 +95,9 @@ const Leave = () => {
     if (!formData.fromDate) {
       errors.fromDate = 'Start date is required';
       isValid = false;
-    } else {
-      const fromDate = new Date(formData.fromDate);
-      if (fromDate < today) {
-        errors.fromDate = 'Start date cannot be in the past';
-        isValid = false;
-      }
+    } else if (new Date(formData.fromDate) < today) {
+      errors.fromDate = 'Start date cannot be in the past';
+      isValid = false;
     }
 
     if (!formData.toDate) {
@@ -138,7 +114,6 @@ const Leave = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
     if (!validateForm() || submitting) return;
 
     setSubmitting(true);
@@ -149,15 +124,9 @@ const Leave = () => {
         toDate: formData.toDate
       });
       
-      // Reset form on successful submission
-      setFormData({
-        reason: '',
-        fromDate: '',
-        toDate: ''
-      });
+      setFormData({ reason: '', fromDate: '', toDate: '' });
       setValidationErrors({});
       
-      // Show success notification
       setNewStatusUpdates(prev => [...prev, {
         type: 'success',
         message: 'Leave application submitted successfully!',
@@ -180,28 +149,28 @@ const Leave = () => {
   };
 
   const getStatusBadge = (status) => {
-    const baseClasses = "inline-flex items-center px-3 py-1 rounded-full text-xs font-medium transition-colors";
+    const baseClasses = "inline-flex items-center px-3 py-1 rounded-full text-xs font-medium";
     
     switch(status) {
       case 'approved':
-        return `${baseClasses} bg-emerald-100 text-emerald-800 border border-emerald-200`;
+        return `${baseClasses} bg-emerald-100 text-emerald-800`;
       case 'rejected':
-        return `${baseClasses} bg-red-100 text-red-800 border border-red-200`;
+        return `${baseClasses} bg-red-100 text-red-800`;
       case 'pending':
-        return `${baseClasses} bg-amber-100 text-amber-800 border border-amber-200`;
+        return `${baseClasses} bg-amber-100 text-amber-800`;
       default:
-        return `${baseClasses} bg-gray-100 text-gray-800 border border-gray-200`;
+        return `${baseClasses} bg-slate-100 text-slate-800`;
     }
   };
 
   const getStatusIcon = (status) => {
     switch(status) {
       case 'approved':
-        return <CheckCircle size={14} className="mr-1.5" />;
+        return <CheckCircle size={14} className="mr-1.5 text-emerald-500" />;
       case 'rejected':
-        return <XCircle size={14} className="mr-1.5" />;
+        return <XCircle size={14} className="mr-1.5 text-red-500" />;
       case 'pending':
-        return <Clock size={14} className="mr-1.5" />;
+        return <Clock size={14} className="mr-1.5 text-amber-500" />;
       default:
         return null;
     }
@@ -210,7 +179,6 @@ const Leave = () => {
   const formatDateRange = (from, to) => {
     const fromDate = new Date(from);
     const toDate = new Date(to);
-    
     const options = { month: 'short', day: 'numeric' };
     
     if (fromDate.getMonth() === toDate.getMonth() && fromDate.getFullYear() === toDate.getFullYear()) {
@@ -223,11 +191,9 @@ const Leave = () => {
     const fromDate = new Date(from);
     const toDate = new Date(to);
     const diffTime = Math.abs(toDate - fromDate);
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays + 1;
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
   };
 
-  // Memoize sorted leaves to prevent unnecessary recalculations
   const sortedLeaves = useMemo(() => {
     if (!Array.isArray(leaves)) return [];
     return [...leaves].sort((a, b) => new Date(b.appliedAt) - new Date(a.appliedAt));
@@ -312,47 +278,47 @@ const Leave = () => {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 shadow-sm border border-gray-200/50 hover:shadow-md transition-shadow">
+          <div className="bg-white rounded-xl shadow-lg p-4 border border-slate-200/60 backdrop-blur-sm hover:shadow-xl transition-all hover:-translate-y-0.5">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100/50 rounded-lg">
+              <div className="p-2 bg-gradient-to-r from-blue-100 to-blue-50 rounded-lg">
                 <CalendarDays size={20} className="text-blue-600" />
               </div>
               <div>
-                <div className="text-2xl font-bold text-gray-900">{leaveStats.total}</div>
-                <div className="text-sm text-gray-600">Total Applications</div>
+                <div className="text-2xl font-bold text-slate-800">{leaveStats.total}</div>
+                <div className="text-sm text-slate-600">Total Applications</div>
               </div>
             </div>
           </div>
-          <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 shadow-sm border border-gray-200/50 hover:shadow-md transition-shadow">
+          <div className="bg-white rounded-xl shadow-lg p-4 border border-slate-200/60 backdrop-blur-sm hover:shadow-xl transition-all hover:-translate-y-0.5">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-emerald-100/50 rounded-lg">
+              <div className="p-2 bg-gradient-to-r from-emerald-100 to-emerald-50 rounded-lg">
                 <CheckCircle size={20} className="text-emerald-600" />
               </div>
               <div>
                 <div className="text-2xl font-bold text-emerald-600">{leaveStats.approved || 0}</div>
-                <div className="text-sm text-gray-600">Approved</div>
+                <div className="text-sm text-slate-600">Approved</div>
               </div>
             </div>
           </div>
-          <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 shadow-sm border border-gray-200/50 hover:shadow-md transition-shadow">
+          <div className="bg-white rounded-xl shadow-lg p-4 border border-slate-200/60 backdrop-blur-sm hover:shadow-xl transition-all hover:-translate-y-0.5">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-amber-100/50 rounded-lg">
+              <div className="p-2 bg-gradient-to-r from-amber-100 to-amber-50 rounded-lg">
                 <Clock size={20} className="text-amber-600" />
               </div>
               <div>
                 <div className="text-2xl font-bold text-amber-600">{leaveStats.pending || 0}</div>
-                <div className="text-sm text-gray-600">Pending</div>
+                <div className="text-sm text-slate-600">Pending</div>
               </div>
             </div>
           </div>
-          <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 shadow-sm border border-gray-200/50 hover:shadow-md transition-shadow">
+          <div className="bg-white rounded-xl shadow-lg p-4 border border-slate-200/60 backdrop-blur-sm hover:shadow-xl transition-all hover:-translate-y-0.5">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-red-100/50 rounded-lg">
+              <div className="p-2 bg-gradient-to-r from-red-100 to-red-50 rounded-lg">
                 <XCircle size={20} className="text-red-600" />
               </div>
               <div>
                 <div className="text-2xl font-bold text-red-600">{leaveStats.rejected || 0}</div>
-                <div className="text-sm text-gray-600">Rejected</div>
+                <div className="text-sm text-slate-600">Rejected</div>
               </div>
             </div>
           </div>
@@ -361,19 +327,19 @@ const Leave = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Leave Application Form */}
           <div className="lg:col-span-1">
-            <div className="bg-white/80 backdrop-blur-sm rounded-xl shadow-sm p-6 border border-gray-200/50 sticky top-6 hover:shadow-md transition-shadow">
+            <div className="bg-white rounded-2xl shadow-lg p-6 border border-slate-200/60 backdrop-blur-sm sticky top-6 hover:shadow-xl transition-all">
               <h2 className="text-xl font-semibold mb-6 flex items-center gap-3">
-                <div className="p-2 bg-blue-100/50 rounded-lg">
-                  <Plus size={20} className="text-blue-600" />
+                <div className="p-2 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-lg">
+                  <Plus size={20} className="text-white" />
                 </div>
-                <span className="bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
+                <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
                   Apply for Leave
                 </span>
               </h2>
               
               <form onSubmit={handleSubmit} className="space-y-5">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
                     Reason for Leave <span className="text-red-500">*</span>
                   </label>
                   <textarea
@@ -382,7 +348,7 @@ const Leave = () => {
                     onChange={handleChange}
                     rows={4}
                     className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none ${
-                      validationErrors.reason ? 'border-red-500 bg-red-50/50' : 'border-gray-300'
+                      validationErrors.reason ? 'border-red-500 bg-red-50/50' : 'border-slate-200'
                     }`}
                     placeholder="Please provide a detailed reason for your leave request..."
                   />
@@ -393,10 +359,10 @@ const Leave = () => {
                         {validationErrors.reason}
                       </p>
                     ) : (
-                      <span className="text-xs text-gray-400">Minimum 10 characters</span>
+                      <span className="text-xs text-slate-400">Minimum 10 characters</span>
                     )}
                     <span className={`text-xs ${
-                      formData.reason.length > 500 ? 'text-red-500' : 'text-gray-400'
+                      formData.reason.length > 500 ? 'text-red-500' : 'text-slate-400'
                     }`}>
                       {formData.reason.length}/500
                     </span>
@@ -405,7 +371,7 @@ const Leave = () => {
 
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
                       From Date <span className="text-red-500">*</span>
                     </label>
                     <div className="relative">
@@ -416,10 +382,10 @@ const Leave = () => {
                         onChange={handleChange}
                         min={new Date().toISOString().split('T')[0]}
                         className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
-                          validationErrors.fromDate ? 'border-red-500 bg-red-50/50' : 'border-gray-300'
+                          validationErrors.fromDate ? 'border-red-500 bg-red-50/50' : 'border-slate-200'
                         }`}
                       />
-                      <Calendar size={16} className="absolute right-4 top-3.5 text-gray-400 pointer-events-none" />
+                      <Calendar size={16} className="absolute right-4 top-3.5 text-slate-400 pointer-events-none" />
                     </div>
                     {validationErrors.fromDate && (
                       <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
@@ -430,7 +396,7 @@ const Leave = () => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
                       To Date <span className="text-red-500">*</span>
                     </label>
                     <div className="relative">
@@ -441,10 +407,10 @@ const Leave = () => {
                         onChange={handleChange}
                         min={formData.fromDate || new Date().toISOString().split('T')[0]}
                         className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
-                          validationErrors.toDate ? 'border-red-500 bg-red-50/50' : 'border-gray-300'
+                          validationErrors.toDate ? 'border-red-500 bg-red-50/50' : 'border-slate-200'
                         }`}
                       />
-                      <Calendar size={16} className="absolute right-4 top-3.5 text-gray-400 pointer-events-none" />
+                      <Calendar size={16} className="absolute right-4 top-3.5 text-slate-400 pointer-events-none" />
                     </div>
                     {validationErrors.toDate && (
                       <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
@@ -467,7 +433,7 @@ const Leave = () => {
                 <button
                   type="submit"
                   disabled={submitting || loading}
-                  className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-medium rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] shadow-md hover:shadow-lg"
+                  className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all hover:shadow-lg hover:-translate-y-0.5"
                 >
                   {submitting ? (
                     <Loader2 size={18} className="animate-spin" />
@@ -482,13 +448,13 @@ const Leave = () => {
 
           {/* Leave History */}
           <div className="lg:col-span-2">
-            <div className="bg-white/80 backdrop-blur-sm rounded-xl shadow-sm overflow-hidden border border-gray-200/50 hover:shadow-md transition-shadow">
-              <div className="p-6 border-b border-gray-200/50 bg-gradient-to-r from-gray-50/50 to-white/50">
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-200/60 backdrop-blur-sm overflow-hidden hover:shadow-xl transition-all">
+              <div className="p-6 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-slate-100">
                 <h2 className="text-xl font-semibold flex items-center gap-3">
-                  <div className="p-2 bg-blue-100/50 rounded-lg">
-                    <History size={20} className="text-blue-600" />
+                  <div className="p-2 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-lg">
+                    <History size={20} className="text-white" />
                   </div>
-                  <span className="bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
+                  <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
                     Leave History
                   </span>
                 </h2>
@@ -496,86 +462,71 @@ const Leave = () => {
 
               {loading && sortedLeaves.length === 0 ? (
                 <div className="p-12 flex flex-col items-center justify-center">
-                  <Loader2 size={32} className="animate-spin text-gray-400 mb-4" />
-                  <p className="text-gray-500">Loading your leave history...</p>
+                  <Loader2 size={32} className="animate-spin text-slate-400 mb-4" />
+                  <p className="text-slate-500">Loading your leave history...</p>
                 </div>
               ) : sortedLeaves.length === 0 ? (
                 <div className="p-12 text-center">
-                  <div className="w-16 h-16 bg-gray-100/50 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <AlertCircle size={32} className="text-gray-400" />
+                  <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <AlertCircle size={32} className="text-slate-400" />
                   </div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No leave records found</h3>
-                  <p className="text-gray-500">Your leave applications will appear here once you submit them.</p>
+                  <h3 className="text-lg font-medium text-slate-800 mb-2">No leave records found</h3>
+                  <p className="text-slate-500">Your leave applications will appear here once you submit them.</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200/50">
-                    <thead className="bg-gray-50/50">
-                      <tr>
-                        <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Leave Period
-                        </th>
-                        <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Duration
-                        </th>
-                        <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Reason
-                        </th>
-                        <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Status
-                        </th>
-                        <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Applied On
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200/50">
-                      {sortedLeaves.map((leave, index) => (
-                        <tr key={leave._id} className={`hover:bg-gray-50/50 transition-colors ${index % 2 === 0 ? 'bg-white/50' : 'bg-gray-50/30'}`}>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center gap-2">
-                              <CalendarDays size={16} className="text-gray-400 flex-shrink-0" />
-                              <div className="text-sm font-medium text-gray-900">
-                                {formatDateRange(leave.fromDate, leave.toDate)}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900 font-medium">
-                              {calculateDays(leave.fromDate, leave.toDate)} day{calculateDays(leave.fromDate, leave.toDate) !== 1 ? 's' : ''}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="text-sm text-gray-900 max-w-xs truncate" title={leave.reason}>
-                              {leave.reason}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex flex-col gap-2">
-                              <span className={getStatusBadge(leave.status)}>
-                                {getStatusIcon(leave.status)}
-                                {leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}
-                              </span>
-                              {leave.rejectionReason && (
-                                <div className="text-xs text-gray-600 mt-1 p-2 bg-red-50/50 rounded border-l-2 border-red-200">
-                                  <strong>Note:</strong> {leave.rejectionReason}
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-500">
+                <div className="divide-y divide-slate-100">
+                  {sortedLeaves.map((leave) => (
+                    <div key={leave._id} className="p-6 hover:bg-slate-50 transition-colors">
+                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-3 mb-2">
+                            <Calendar size={16} className="text-slate-500 flex-shrink-0" />
+                            <span className="text-sm text-slate-500">
                               {new Date(leave.appliedAt).toLocaleDateString('en-US', {
                                 year: 'numeric',
                                 month: 'short',
                                 day: 'numeric'
                               })}
+                            </span>
+                            <div className="hidden md:block">
+                              <span className={getStatusBadge(leave.status)}>
+                                {getStatusIcon(leave.status)}
+                                {leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}
+                              </span>
                             </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                          </div>
+                          
+                          <h4 className="text-base font-medium text-slate-800">
+                            {formatDateRange(leave.fromDate, leave.toDate)} • {calculateDays(leave.fromDate, leave.toDate)} day{calculateDays(leave.fromDate, leave.toDate) !== 1 ? 's' : ''}
+                          </h4>
+                          
+                          <p className="text-sm text-slate-600 mt-2 line-clamp-2">
+                            {leave.reason}
+                          </p>
+                        </div>
+                        
+                        <div className="flex items-center gap-4">
+                          <div className="md:hidden">
+                            <span className={getStatusBadge(leave.status)}>
+                              {getStatusIcon(leave.status)}
+                              {leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}
+                            </span>
+                          </div>
+                          
+                          {leave.rejectionReason && (
+                            <button className="text-xs text-slate-500 hover:text-slate-700 flex items-center gap-1">
+                              <span>View Note</span>
+                              <ChevronDown size={14} />
+                            </button>
+                          )}
+                          
+                          <button className="text-slate-400 hover:text-slate-600">
+                            <ChevronRight size={18} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
