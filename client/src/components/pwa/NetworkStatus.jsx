@@ -87,7 +87,10 @@ export const NetworkStatus = () => {
   const { icon: Icon, color, bgColor, borderColor, label, speed } = getConnectionDetails();
 
   return (
-    <div className={`inline-flex items-center px-3 py-1.5 rounded-full border ${bgColor} ${borderColor} transition-all duration-200`}>
+    <div 
+      className={`inline-flex items-center px-3 py-1.5 rounded-full border ${bgColor} ${borderColor} transition-all duration-200 hover:shadow-sm cursor-default`}
+      title={`Network status: ${label}${speed ? ` (${speed})` : ''}`}
+    >
       <Icon className={`h-4 w-4 ${color} mr-2`} />
       <div className="flex flex-col sm:flex-row sm:items-center">
         <span className={`text-xs font-medium ${color}`}>
@@ -102,3 +105,5 @@ export const NetworkStatus = () => {
     </div>
   );
 };
+
+export default NetworkStatus;

@@ -1,24 +1,22 @@
 import { useEffect, useState } from 'react';
 import { RefreshCw, CheckCircle, AlertTriangle, Upload, Download } from 'lucide-react';
 
-export const SyncIndicator = () => {
+export const SyncIndicator = ({ onRetry }) => {
   const [syncState, setSyncState] = useState({
-    status: 'idle', // 'idle', 'syncing', 'success', 'error'
+    status: 'idle',
     lastSynced: null,
     pendingItems: 0,
-    syncType: 'upload' // 'upload', 'download', 'both'
+    syncType: 'upload'
   });
 
   useEffect(() => {
     if ('serviceWorker' in navigator && 'SyncManager' in window) {
       navigator.serviceWorker.ready.then((registration) => {
-        // Register background sync
         registration.sync.register('sync-queue').then(() => {
           setSyncState(prev => ({ ...prev, status: 'syncing', syncType: 'upload' }));
         });
       });
 
-      // Listen for sync events
       navigator.serviceWorker.addEventListener('message', (event) => {
         if (event.data.type === 'SYNC_STARTED') {
           setSyncState(prev => ({ 
@@ -35,107 +33,79 @@ export const SyncIndicator = () => {
             pendingItems: 0
           }));
           
-          // Reset to idle after 3 seconds
-          setTimeout(() => {
-            setSyncState(prev => ({ ...prev, status: 'idle' }));
-          }, 3000);
+          setTimeout(() => setSyncState(prev => ({ ...prev, status: 'idle' }), 3000));
         } else if (event.data.type === 'SYNC_ERROR') {
           setSyncState(prev => ({ ...prev, status: 'error' }));
-          
-          // Reset to idle after 5 seconds
-          setTimeout(() => {
-            setSyncState(prev => ({ ...prev, status: 'idle' }));
-          }, 5000);
+          setTimeout(() => setSyncState(prev => ({ ...prev, status: 'idle' }), 5000));
         }
       });
     }
   }, []);
 
-  const getSyncIcon = () => {
+  const handleRetry = () => {
+    if (onRetry) onRetry();
+    setSyncState(prev => ({ ...prev, status: 'syncing' }));
+  };
+
+  const getSyncDetails = () => {
     switch (syncState.status) {
       case 'syncing':
-        return syncState.syncType === 'download' ? Download : Upload;
+        return {
+          icon: syncState.syncType === 'download' ? Download : Upload,
+          color: 'text-blue-500',
+          bgColor: 'bg-blue-50 border-blue-200',
+          message: 'Syncing data...',
+          subMessage: syncState.pendingItems > 0 ? `${syncState.pendingItems} items pending` : null
+        };
       case 'success':
-        return CheckCircle;
+        return {
+          icon: CheckCircle,
+          color: 'text-green-500',
+          bgColor: 'bg-green-50 border-green-200',
+          message: 'Sync complete',
+          subMessage: syncState.lastSynced?.toLocaleTimeString()
+        };
       case 'error':
-        return AlertTriangle;
+        return {
+          icon: AlertTriangle,
+          color: 'text-red-500',
+          bgColor: 'bg-red-50 border-red-200',
+          message: 'Sync failed',
+          subMessage: 'Tap to retry'
+        };
       default:
         return null;
     }
   };
 
-  const getSyncColor = () => {
-    switch (syncState.status) {
-      case 'syncing':
-        return 'text-blue-500';
-      case 'success':
-        return 'text-green-500';
-      case 'error':
-        return 'text-red-500';
-      default:
-        return 'text-gray-500';
-    }
-  };
-
-  const getSyncBackground = () => {
-    switch (syncState.status) {
-      case 'syncing':
-        return 'bg-blue-50 border-blue-200';
-      case 'success':
-        return 'bg-green-50 border-green-200';
-      case 'error':
-        return 'bg-red-50 border-red-200';
-      default:
-        return 'bg-gray-50 border-gray-200';
-    }
-  };
-
-  if (syncState.status === 'idle') return null;
-
-  const Icon = getSyncIcon();
-  const color = getSyncColor();
-  const bgClass = getSyncBackground();
+  const details = getSyncDetails();
+  if (!details || syncState.status === 'idle') return null;
 
   return (
-    <div className="fixed bottom-6 right-6 z-40">
-      <div className={`flex items-center px-4 py-3 rounded-2xl border shadow-lg backdrop-blur-sm transition-all duration-300 ${bgClass}`}>
+    <div 
+      className={`fixed bottom-6 right-6 z-40 cursor-pointer ${syncState.status === 'error' ? 'animate-shake' : ''}`}
+      onClick={syncState.status === 'error' ? handleRetry : undefined}
+    >
+      <div className={`flex items-center px-4 py-3 rounded-2xl border shadow-lg backdrop-blur-sm transition-all duration-300 ${details.bgColor} hover:shadow-xl`}>
         <div className="flex items-center space-x-3">
-          {Icon && (
-            <Icon 
-              className={`h-5 w-5 ${color} ${
-                syncState.status === 'syncing' ? 'animate-spin' : ''
-              }`} 
-            />
-          )}
+          <details.icon 
+            className={`h-5 w-5 ${details.color} ${
+              syncState.status === 'syncing' ? 'animate-spin' : ''
+            }`} 
+          />
           
           <div className="flex flex-col">
-            <span className={`text-sm font-medium ${color}`}>
-              {syncState.status === 'syncing' && 'Syncing data...'}
-              {syncState.status === 'success' && 'Sync complete'}
-              {syncState.status === 'error' && 'Sync failed'}
+            <span className={`text-sm font-medium ${details.color}`}>
+              {details.message}
             </span>
-            
-            {syncState.status === 'syncing' && syncState.pendingItems > 0 && (
+            {details.subMessage && (
               <span className="text-xs text-gray-500">
-                {syncState.pendingItems} items pending
-              </span>
-            )}
-            
-            {syncState.status === 'success' && syncState.lastSynced && (
-              <span className="text-xs text-gray-500">
-                {syncState.lastSynced.toLocaleTimeString()}
-              </span>
-            )}
-            
-            {syncState.status === 'error' && (
-              <span className="text-xs text-gray-500">
-                Tap to retry
+                {details.subMessage}
               </span>
             )}
           </div>
         </div>
         
-        {/* Progress indicator for syncing */}
         {syncState.status === 'syncing' && (
           <div className="ml-3">
             <div className="w-8 h-8 relative">

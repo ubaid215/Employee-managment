@@ -1,13 +1,19 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Menu, Bell, HelpCircle, Search, Briefcase, Calendar, DollarSign } from 'lucide-react';
-import UserAvatar from './UserAvatar'; // Assume you have this component
+import { 
+  Menu, Bell, Search, 
+  Briefcase, Calendar, DollarSign, User,
+  Wifi, WifiOff
+} from 'lucide-react';
+import UserAvatar from './UserAvatar';
+import NetworkStatus from '../pwa/NetworkStatus'; 
 
 const Navbar = ({ toggleSidebar }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const location = useLocation();
   const [pageTitle, setPageTitle] = useState('');
   const [isScrolled, setIsScrolled] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -18,15 +24,22 @@ const Navbar = ({ toggleSidebar }) => {
       setIsScrolled(window.scrollY > 10);
     };
 
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
     window.addEventListener('scroll', handleScroll);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
     return () => {
       clearInterval(timer);
       window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
     };
   }, []);
 
   useEffect(() => {
-    // Enhanced page titles with icons
     const path = location.pathname.split('/')[1];
     const titles = {
       '': 'Dashboard',
@@ -61,7 +74,6 @@ const Navbar = ({ toggleSidebar }) => {
           <div className="flex items-center">
             <h1 className="text-lg font-semibold text-gray-800 flex items-center">
               <span className="hidden sm:inline-block mr-2 text-blue-500">
-                {/* Icon based on route */}
                 {location.pathname.includes('duties') && <Briefcase size={18} />}
                 {location.pathname.includes('leave') && <Calendar size={18} />}
                 {location.pathname.includes('salary') && <DollarSign size={18} />}
@@ -74,14 +86,23 @@ const Navbar = ({ toggleSidebar }) => {
 
         {/* Right section */}
         <div className="flex items-center space-x-3 sm:space-x-4">
-          {/* Search button (hidden on mobile) */}
+          {/* Mobile Network Indicator (Simplified) */}
+          <div className="md:hidden">
+            {isOnline ? (
+              <Wifi className="w-5 h-5 text-green-500" />
+            ) : (
+              <WifiOff className="w-5 h-5 text-red-500" />
+            )}
+          </div>
+          
+          {/* Desktop Network Status */}
+          <div className="hidden md:block">
+            <NetworkStatus />
+          </div>
+          
+          {/* Search button */}
           <button className="hidden md:flex items-center justify-center p-2 rounded-full text-gray-500 hover:text-gray-700 hover:bg-gray-100">
             <Search className="w-5 h-5" />
-          </button>
-          
-          {/* Help button */}
-          <button className="hidden sm:flex items-center justify-center p-2 rounded-full text-gray-500 hover:text-gray-700 hover:bg-gray-100">
-            <HelpCircle className="w-5 h-5" />
           </button>
           
           {/* Notifications */}
@@ -90,7 +111,7 @@ const Navbar = ({ toggleSidebar }) => {
             <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
           </button>
           
-          {/* Time and date */}
+          {/* Time and date (desktop only) */}
           <div className="hidden md:flex flex-col items-end pl-3 border-l border-gray-200">
             <div className="text-sm font-medium text-gray-700">
               {currentTime.toLocaleTimeString('en-US', {
