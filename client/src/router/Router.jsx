@@ -24,6 +24,7 @@ import LeavesManage from "../pages/admin/LeavesManage";
 import Settings from "../pages/admin/Settings";
 import LoadingScreen from "../components/common/LoadingScreen";
 import { useAuth } from "../context/AuthContext";
+import DutyCreate from "../pages/admin/DutyCreate";
 
 const Router = () => {
   const { loading } = useAuth();
@@ -73,6 +74,7 @@ const Router = () => {
         <Route path="all-employees" element={<EmployeeList />} />
         <Route path="employees/:id" element={<EmployeeDetails />} />
         <Route path="departments" element={<Department />} />
+        <Route path="duties-manage" element={<DutyCreate />} />
         <Route path="add-salary" element={<GiveSalary />} />
         <Route path="leaves-manage" element={<LeavesManage />} />
         <Route path="settings" element={<Settings />} />

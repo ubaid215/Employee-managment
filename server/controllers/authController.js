@@ -95,29 +95,44 @@ exports.loginUser = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
+    console.log('🔐 Login attempt with email:', email);
+
     // 1) Check if email and password exist
     if (!email || !password) {
+      console.log('❌ Email or password missing');
       return next(new AppError('Please provide email and password', 400));
     }
 
     // 2) Check if user exists and password is correct
     const user = await User.findOne({ email }).select('+password +status');
 
+    if (!user) {
+      console.log('❌ No user found with this email');
+    } else {
+      console.log('✅ User found:', user.email);
+    }
+
     if (!user || !(await user.correctPassword(password, user.password))) {
+      console.log('❌ Incorrect password');
       return next(new AppError('Incorrect email or password', 401));
     }
 
     // 3) Check if account is active
     if (user.status !== 'active') {
+      console.log('🚫 User is not active:', user.status);
       return next(new AppError('Your account is not active', 403));
     }
 
     // 4) If everything ok, send token to client
+    console.log('🎉 Login successful:', user.email);
     createSendToken(user, 200, res);
+
   } catch (err) {
+    console.error('🔥 Error in loginUser:', err.message);
     next(err);
   }
 };
+
 
 // Logout user
 exports.logoutUser = (req, res) => {

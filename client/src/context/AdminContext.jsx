@@ -1,4 +1,3 @@
-/* eslint-disable no-unused-vars */
 import { createContext, useContext, useState, useRef, useCallback } from 'react';
 import { adminService } from '../services/apiServices';
 
@@ -10,6 +9,7 @@ export const AdminProvider = ({ children }) => {
   const [employeeTasks, setEmployeeTasks] = useState([]);
   const [salaries, setSalaries] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [duties, setDuties] = useState([]);
   const [departmentHistory, setDepartmentHistory] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -21,6 +21,7 @@ export const AdminProvider = ({ children }) => {
     leaves: { data: null, timestamp: null, loading: false, filters: null },
     tasks: { data: null, timestamp: null, loading: false, filters: null },
     salaries: { data: null, timestamp: null, loading: false, filters: null },
+    duties: { data: null, timestamp: null, loading: false }
   });
 
   // Cache duration (5 minutes)
@@ -29,12 +30,9 @@ export const AdminProvider = ({ children }) => {
   // Helper function to check if cache is valid
   const isCacheValid = (cacheKey) => {
     const cached = cache.current[cacheKey];
-    return cached.data && 
-           cached.timestamp && 
-           (Date.now() - cached.timestamp) < CACHE_DURATION;
+    return cached.data && cached.timestamp && (Date.now() - cached.timestamp) < CACHE_DURATION;
   };
 
-  // Helper function to update cache
   const updateCache = (cacheKey, data, filters = null) => {
     cache.current[cacheKey] = {
       data,
@@ -44,94 +42,30 @@ export const AdminProvider = ({ children }) => {
     };
   };
 
-  // Helper function to check if filters have changed
   const filtersChanged = (cacheKey, newFilters) => {
     const cached = cache.current[cacheKey];
     return JSON.stringify(cached.filters) !== JSON.stringify(newFilters);
   };
 
-  // Fetch all employees with caching
-  const fetchEmployees = useCallback(async (force = false) => {
-    // Return cached data if valid and not forced
-    if (!force && isCacheValid('employees')) {
-      setEmployees(cache.current.employees.data);
-      return;
-    }
-
-    // Prevent multiple simultaneous calls
-    if (cache.current.employees.loading) {
-      return;
-    }
-
-    cache.current.employees.loading = true;
-    setLoading(true);
-    
-    try {
-      const { data } = await adminService.getAllEmployees();
-      console.log('Employees API Response:', data);
-      
-      const employeesData = Array.isArray(data) ? data : [];
-      setEmployees(employeesData);
-      updateCache('employees', employeesData);
-      setError(null);
-    } catch (err) {
-      console.error('Fetch employees error:', err);
-      setError(err.response?.data?.message || 'Failed to fetch employees');
-    } finally {
-      setLoading(false);
-      cache.current.employees.loading = false;
-    }
-  }, []);
-
-  // Get single employee details with local cache check
-  const getEmployeeDetails = useCallback(async (employeeId) => {
-    try {
-      // First try to find in local employees state
-      const localEmployee = employees.find(emp => emp._id === employeeId);
-      if (localEmployee && localEmployee.department && localEmployee.duties) {
-        return localEmployee;
-      }
-
-      const { data } = await adminService.getEmployeeDetails(employeeId);
-      
-      // Update the employee in local state
-      setEmployees(prev => 
-        prev.map(emp => 
-          emp._id === employeeId ? { ...emp, ...data.employee } : emp
-        )
-      );
-      
-      return data.employee;
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to fetch employee details');
-      throw err;
-    }
-  }, [employees]);
-
-  // Fetch all departments with caching
-  const fetchDepartments = useCallback(async (force = false) => {
-    if (!force && isCacheValid('departments')) {
+  // Department-related functions
+  const fetchDepartments = useCallback(async (params = {}, force = false) => {
+    if (!force && isCacheValid('departments') && !filtersChanged('departments', params)) {
       setDepartments(cache.current.departments.data);
       return;
     }
 
-    if (cache.current.departments.loading) {
-      return;
-    }
+    if (cache.current.departments.loading) return;
 
     cache.current.departments.loading = true;
     setLoading(true);
     
     try {
-      const { data } = await adminService.getAllDepartments();
-      console.log('Departments API Response:', data);
-      
-      const departmentsData = data?.data?.departments || data?.departments || [];
+      const { data } = await adminService.getDepartments(params);
+      const departmentsData = Array.isArray(data) ? data : data?.data?.departments || [];
       setDepartments(departmentsData);
-      updateCache('departments', departmentsData);
+      updateCache('departments', departmentsData, params);
       setError(null);
     } catch (err) {
-      console.error('Fetch departments error:', err);
       setError(err.response?.data?.message || 'Failed to fetch departments');
     } finally {
       setLoading(false);
@@ -139,132 +73,345 @@ export const AdminProvider = ({ children }) => {
     }
   }, []);
 
-  // Create department with cache invalidation
-  const createDepartment = useCallback(async (name) => {
+  const getDepartment = useCallback(async (id) => {
     try {
-      const { data } = await adminService.createDepartment(name);
-      
-      // Update local state
-      const newDepartments = [data.department, ...departments];
-      setDepartments(newDepartments);
-      
-      // Update cache
-      updateCache('departments', newDepartments);
-      
-      return data.department;
+      const localDept = departments.find(d => d._id === id);
+      if (localDept) return localDept;
+
+      setLoading(true);
+      const { data } = await adminService.getDepartment(id);
+      return data;
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to create department');
+      setError(err.response?.data?.message || 'Failed to fetch department');
       throw err;
+    } finally {
+      setLoading(false);
     }
   }, [departments]);
 
-  // Create duty (no caching needed as it's a single operation)
-  const createDuty = useCallback(async (dutyData) => {
+  const createDepartment = useCallback(async (departmentData) => {
     try {
-      const { data } = await adminService.createDuty(dutyData);
-      return data.duty;
+      setLoading(true);
+      const { data } = await adminService.createDepartment(departmentData);
+      
+      setDepartments(prev => [data, ...prev]);
+      updateCache('departments', [data, ...departments]);
+      
+      return data;
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to create duty');
+      setError(err.response?.data?.message || 'Failed to create department');
       throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [departments]);
+
+  const updateDepartment = useCallback(async (id, updates) => {
+    try {
+      setLoading(true);
+      const { data } = await adminService.updateDepartment(id, updates);
+      
+      setDepartments(prev => 
+        prev.map(dept => dept._id === id ? { ...dept, ...data } : dept)
+      );
+      updateCache('departments', departments.map(dept => 
+        dept._id === id ? { ...dept, ...data } : dept
+      ));
+      
+      return data;
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to update department');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [departments]);
+
+  const deleteDepartment = useCallback(async (id, transferId = null) => {
+    try {
+      setLoading(true);
+      await adminService.deleteDepartment(id, transferId);
+      
+      setDepartments(prev => prev.filter(dept => dept._id !== id));
+      updateCache('departments', departments.filter(dept => dept._id !== id));
+      
+      return true;
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to delete department');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [departments]);
+
+  const getDepartmentAnalytics = useCallback(async () => {
+    try {
+      setLoading(true);
+      const { data } = await adminService.getDepartmentAnalytics();
+      return data;
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to fetch department analytics');
+      throw err;
+    } finally {
+      setLoading(false);
     }
   }, []);
 
-  // Assign department and duties with state updates
-  const assignDepartment = useCallback(async (userId, departmentId, dutyIds, reason) => {
+  // Employee-related functions
+  const fetchEmployees = useCallback(async (params = {}, force = false) => {
+    if (!force && isCacheValid('employees') && !filtersChanged('employees', params)) {
+      setEmployees(cache.current.employees.data);
+      return;
+    }
+
+    if (cache.current.employees.loading) return;
+
+    cache.current.employees.loading = true;
+    setLoading(true);
+    
     try {
-      const { data } = await adminService.assignDepartmentAndDuties(
+      const { data } = await adminService.getEmployees(params);
+      const employeesData = Array.isArray(data) ? data : data?.data?.employees || [];
+      setEmployees(employeesData);
+      updateCache('employees', employeesData, params);
+      setError(null);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to fetch employees');
+    } finally {
+      setLoading(false);
+      cache.current.employees.loading = false;
+    }
+  }, []);
+
+  const getEmployee = useCallback(async (id) => {
+    try {
+      const localEmployee = employees.find(emp => emp._id === id);
+      if (localEmployee) return localEmployee;
+
+      setLoading(true);
+      const { data } = await adminService.getEmployee(id);
+      
+      // Update local state if employee exists
+      if (localEmployee) {
+        setEmployees(prev => prev.map(emp => 
+          emp._id === id ? { ...emp, ...data } : emp
+        ));
+      }
+      
+      return data;
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to fetch employee');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [employees]);
+
+  // Alias for getEmployee to match component usage
+  const getEmployeeDetails = getEmployee;
+
+  const assignEmployeeDuties = useCallback(async (userId, departmentId, dutyIds, reason) => {
+    try {
+      const { data } = await adminService.assignEmployeeDuties(
         userId,
         departmentId,
         dutyIds,
         reason
       );
       
-      // Update local employees state
-      const updatedEmployees = employees.map(emp =>
+      setEmployees(prev => prev.map(emp =>
         emp._id === userId
           ? { ...emp, department: data.department, duties: data.duties }
           : emp
-      );
-      setEmployees(updatedEmployees);
+      ));
+      updateCache('employees', employees.map(emp =>
+        emp._id === userId
+          ? { ...emp, department: data.department, duties: data.duties }
+          : emp
+      ));
       
-      // Update cache
-      updateCache('employees', updatedEmployees);
-      
-      return data.user;
+      return data;
     } catch (err) {
       setError(err.response?.data?.message || 'Assignment failed');
       throw err;
     }
   }, [employees]);
 
-  // Change employee status with state updates
-  const changeEmployeeStatus = useCallback(async (userId, status) => {
+  const updateEmployeeStatus = useCallback(async (userId, status) => {
     try {
-      const { data } = await adminService.changeEmployeeStatus(userId, status);
+      const { data } = await adminService.updateEmployeeStatus(userId, status);
       
-      const updatedEmployees = employees.map(emp =>
-        emp._id === userId ? { ...emp, status: status } : emp
-      );
-      setEmployees(updatedEmployees);
+      setEmployees(prev => prev.map(emp =>
+        emp._id === userId ? { ...emp, status } : emp
+      ));
+      updateCache('employees', employees.map(emp =>
+        emp._id === userId ? { ...emp, status } : emp
+      ));
       
-      // Update cache
-      updateCache('employees', updatedEmployees);
-      
-      return data.user;
+      return data;
     } catch (err) {
-      setError(err.response?.data?.message || 'Status change failed');
+      setError(err.response?.data?.message || 'Status update failed');
       throw err;
     }
   }, [employees]);
 
-  // Fetch employee tasks with caching and filter comparison
-  const fetchEmployeeTasks = useCallback(async (filters = {}, force = false) => {
-    const filtersKey = JSON.stringify(filters);
+  // Alias for updateEmployeeStatus to match component usage
+  const changeEmployeeStatus = updateEmployeeStatus;
+
+  // Duty-related functions
+  const fetchDuties = useCallback(async (params = {}, force = false) => {
+    if (!force && isCacheValid('duties') && !filtersChanged('duties', params)) {
+      setDuties(cache.current.duties.data);
+      return;
+    }
+
+    if (cache.current.duties.loading) return;
+
+    cache.current.duties.loading = true;
+    setLoading(true);
     
-    if (!force && isCacheValid('tasks') && !filtersChanged('tasks', filters)) {
+    try {
+      const { data } = await adminService.getDuties(params);
+      const dutiesData = Array.isArray(data) ? data : data?.data?.duties || [];
+      setDuties(dutiesData);
+      updateCache('duties', dutiesData, params);
+      setError(null);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to fetch duties');
+    } finally {
+      setLoading(false);
+      cache.current.duties.loading = false;
+    }
+  }, []);
+
+  const createDuty = useCallback(async (dutyData) => {
+    try {
+      setLoading(true);
+      const { data } = await adminService.createDuty(dutyData);
+      
+      setDuties(prev => [data, ...prev]);
+      cache.current.duties = { data: null, timestamp: null, loading: false };
+      
+      return data;
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to create duty');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const getDutyFormSchema = useCallback(async (id) => {
+    try {
+      setLoading(true);
+      const { data } = await adminService.getDutyFormSchema(id);
+      return data;
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to fetch form schema');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // New duty assignment functions
+  const assignDepartmentAndDuties = useCallback(async (assignmentData) => {
+    try {
+      setLoading(true);
+      const { data } = await adminService.assignDepartmentAndDuties(assignmentData);
+      
+      // Update employee in local state
+      if (assignmentData.userId) {
+        setEmployees(prev => prev.map(emp =>
+          emp._id === assignmentData.userId
+            ? { ...emp, department: data.department, duties: data.duties }
+            : emp
+        ));
+        updateCache('employees', employees.map(emp =>
+          emp._id === assignmentData.userId
+            ? { ...emp, department: data.department, duties: data.duties }
+            : emp
+        ));
+      }
+      
+      return data;
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to assign department and duties');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [employees]);
+
+  const updateDepartmentAndDuties = useCallback(async (updateData) => {
+    try {
+      setLoading(true);
+      const { data } = await adminService.updateDepartmentAndDuties(updateData);
+      
+      // Update employee in local state
+      if (updateData.userId) {
+        setEmployees(prev => prev.map(emp =>
+          emp._id === updateData.userId
+            ? { ...emp, department: data.department, duties: data.duties }
+            : emp
+        ));
+        updateCache('employees', employees.map(emp =>
+          emp._id === updateData.userId
+            ? { ...emp, department: data.department, duties: data.duties }
+            : emp
+        ));
+      }
+      
+      return data;
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to update department and duties');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [employees]);
+
+  // Task-related functions
+  const fetchEmployeeTasks = useCallback(async (params = {}, force = false) => {
+    if (!force && isCacheValid('tasks') && !filtersChanged('tasks', params)) {
       setEmployeeTasks(cache.current.tasks.data);
       return;
     }
 
-    if (cache.current.tasks.loading) {
-      return;
-    }
+    if (cache.current.tasks.loading) return;
 
     cache.current.tasks.loading = true;
     setLoading(true);
     
     try {
-      const { data } = await adminService.getEmployeeTasks(filters);
-      setEmployeeTasks(data.tasks);
-      updateCache('tasks', data.tasks, filters);
+      const { data } = await adminService.getTasks(params);
+      const tasksData = Array.isArray(data) ? data : data?.data?.tasks || [];
+      setEmployeeTasks(tasksData);
+      updateCache('tasks', tasksData, params);
       setError(null);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to fetch employee tasks');
+      setError(err.response?.data?.message || 'Failed to fetch tasks');
     } finally {
       setLoading(false);
       cache.current.tasks.loading = false;
     }
   }, []);
 
-  // Review task with optimistic updates
-  const reviewTask = useCallback(async (taskId, status, feedback) => {
+  const reviewTask = useCallback(async (id, status, feedback) => {
     try {
       // Optimistic update
-      const optimisticUpdate = employeeTasks.map(task =>
-        task._id === taskId ? { ...task, status, feedback, reviewedAt: new Date() } : task
-      );
-      setEmployeeTasks(optimisticUpdate);
+      setEmployeeTasks(prev => prev.map(task =>
+        task._id === id ? { ...task, status, feedback, reviewedAt: new Date() } : task
+      ));
 
-      const { data } = await adminService.reviewTask(taskId, status, feedback);
+      const { data } = await adminService.reviewTask(id, status, feedback);
       
       // Update with actual response
-      setEmployeeTasks(prev =>
-        prev.map(task =>
-          task._id === taskId ? { ...task, ...data.task } : task
-        )
-      );
+      setEmployeeTasks(prev => prev.map(task =>
+        task._id === id ? { ...task, ...data } : task
+      ));
       
-      return data.task;
+      return data;
     } catch (err) {
       // Revert optimistic update on error
       setEmployeeTasks(employeeTasks);
@@ -273,41 +420,35 @@ export const AdminProvider = ({ children }) => {
     }
   }, [employeeTasks]);
 
-  // Get employee task stats (no caching for stats as they change frequently)
-  const getEmployeeTaskStats = useCallback(async (employeeId) => {
+  const getEmployeeTaskStats = useCallback(async (id) => {
     try {
-      const { data } = await adminService.getEmployeeTaskStats(employeeId);
-      return data.stats;
+      const { data } = await adminService.getEmployeeTaskStats(id);
+      return data;
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to fetch task stats');
       throw err;
     }
   }, []);
 
-  // Fetch all leaves with caching and filter comparison
-  const fetchAllLeaves = useCallback(async (filters = {}, force = false) => {
-    if (!force && isCacheValid('leaves') && !filtersChanged('leaves', filters)) {
+  // Leave-related functions
+  const fetchAllLeaves = useCallback(async (params = {}, force = false) => {
+    if (!force && isCacheValid('leaves') && !filtersChanged('leaves', params)) {
       setAllLeaves(cache.current.leaves.data);
       return;
     }
 
-    if (cache.current.leaves.loading) {
-      return;
-    }
+    if (cache.current.leaves.loading) return;
 
     cache.current.leaves.loading = true;
     setLoading(true);
     
     try {
-      const { data } = await adminService.getAllLeaves(filters);
-      console.log('Leaves API Response:', data);
-      
-      const leavesData = data?.data?.leaves || data?.leaves || [];
+      const { data } = await adminService.getLeaves(params);
+      const leavesData = Array.isArray(data) ? data : data?.data?.leaves || [];
       setAllLeaves(leavesData);
-      updateCache('leaves', leavesData, filters);
+      updateCache('leaves', leavesData, params);
       setError(null);
     } catch (err) {
-      console.error('Fetch leaves error:', err);
       setError(err.response?.data?.message || 'Failed to fetch leaves');
     } finally {
       setLoading(false);
@@ -315,104 +456,82 @@ export const AdminProvider = ({ children }) => {
     }
   }, []);
 
-  // Get leave details with local cache check
-  const getLeaveDetails = useCallback(async (leaveId) => {
+  const getLeave = useCallback(async (id) => {
     try {
-      // First try to find in local leaves state
-      const localLeave = allLeaves.find(leave => leave._id === leaveId);
-      if (localLeave && localLeave.employee && localLeave.type) {
-        return localLeave;
-      }
+      const localLeave = allLeaves.find(leave => leave._id === id);
+      if (localLeave) return localLeave;
 
-      const { data } = await adminService.getLeaveDetails(leaveId);
-      return data.leave;
+      setLoading(true);
+      const { data } = await adminService.getLeave(id);
+      return data;
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to fetch leave details');
+      setError(err.response?.data?.message || 'Failed to fetch leave');
       throw err;
+    } finally {
+      setLoading(false);
     }
   }, [allLeaves]);
 
-  // Process leave with optimistic updates
-  const processLeave = useCallback(async (leaveId, decision) => {
+  const updateLeaveStatus = useCallback(async (id, decision) => {
     try {
       // Optimistic update
-      const optimisticUpdate = allLeaves.map(leave =>
-        leave._id === leaveId ? { ...leave, status: decision.status, processedAt: new Date() } : leave
-      );
-      setAllLeaves(optimisticUpdate);
+      setAllLeaves(prev => prev.map(leave =>
+        leave._id === id ? { ...leave, status: decision.status, processedAt: new Date() } : leave
+      ));
 
-      const { data } = await adminService.approveLeave(leaveId, decision);
+      const { data } = await adminService.updateLeaveStatus(id, decision);
       
       // Update with actual response
-      setAllLeaves(prev =>
-        prev.map(leave =>
-          leave._id === leaveId ? { ...leave, ...data.leave } : leave
-        )
-      );
+      setAllLeaves(prev => prev.map(leave =>
+        leave._id === id ? { ...leave, ...data } : leave
+      ));
       
-      return data.leave;
+      return data;
     } catch (err) {
       // Revert optimistic update on error
       setAllLeaves(allLeaves);
-      setError(err.response?.data?.message || 'Leave processing failed');
+      setError(err.response?.data?.message || 'Leave update failed');
       throw err;
     }
   }, [allLeaves]);
 
-  // Get leave analytics (no caching for analytics)
   const getLeaveAnalytics = useCallback(async () => {
     try {
       const { data } = await adminService.getLeaveAnalytics();
-      return data.analytics;
+      return data;
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to fetch leave analytics');
       throw err;
     }
   }, []);
 
-  // Get advanced leave analytics (no caching for analytics)
-  const getAdvancedLeaveAnalytics = useCallback(async (filters = {}) => {
+  const getAdvancedLeaveAnalytics = useCallback(async (params = {}) => {
     try {
-      const { data } = await adminService.getAdvancedLeaveAnalytics(filters);
-      return data.analytics;
+      const { data } = await adminService.getAdvancedLeaveAnalytics(params);
+      return data;
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to fetch advanced analytics');
       throw err;
     }
   }, []);
 
-  // Fetch department history (no caching as it's specific to department)
-  const fetchDepartmentHistory = useCallback(async (departmentId) => {
-    setLoading(true);
-    try {
-      const { data } = await adminService.getDepartmentHistory(departmentId);
-      setDepartmentHistory(data.history);
-      setError(null);
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to fetch history');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Fetch salaries with caching and filter comparison
-  const fetchSalaries = useCallback(async (filters = {}, force = false) => {
-    if (!force && isCacheValid('salaries') && !filtersChanged('salaries', filters)) {
+  // Salary-related functions
+  const fetchSalaries = useCallback(async (params = {}, force = false) => {
+    if (!force && isCacheValid('salaries') && !filtersChanged('salaries', params)) {
       setSalaries(cache.current.salaries.data);
       return;
     }
 
-    if (cache.current.salaries.loading) {
-      return;
-    }
+    if (cache.current.salaries.loading) return;
 
     cache.current.salaries.loading = true;
     setLoading(true);
     
     try {
-      const { data } = await adminService.getAllSalaries(filters);
-      setSalaries(data.salaries);
-      updateCache('salaries', data.salaries, filters);
+      const { data } = await adminService.getSalaries(params);
+      const salariesData = Array.isArray(data) ? data : data?.data?.salaries || [];
+      setSalaries(salariesData);
+      updateCache('salaries', salariesData, params);
       setError(null);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to fetch salaries');
@@ -422,50 +541,63 @@ export const AdminProvider = ({ children }) => {
     }
   }, []);
 
-  // Add salary with cache updates
   const addSalary = useCallback(async (salaryData) => {
     try {
-      const { data } = await adminService.addSalary(salaryData);
+      setLoading(true);
+      const { data } = await adminService.createSalary(salaryData);
       
-      const updatedSalaries = [data.salary, ...salaries];
-      setSalaries(updatedSalaries);
+      setSalaries(prev => [data, ...prev]);
+      updateCache('salaries', [data, ...salaries], cache.current.salaries.filters);
       
-      // Update cache
-      updateCache('salaries', updatedSalaries, cache.current.salaries.filters);
-      
-      return data.salary;
+      return data;
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to add salary');
       throw err;
+    } finally {
+      setLoading(false);
     }
   }, [salaries]);
 
-  // Update salary with cache updates
-  const updateSalary = useCallback(async (salaryId, updates) => {
+  const updateSalary = useCallback(async (id, updates) => {
     try {
-      const { data } = await adminService.updateSalary(salaryId, updates);
+      setLoading(true);
+      const { data } = await adminService.updateSalary(id, updates);
       
-      const updatedSalaries = salaries.map(salary =>
-        salary._id === salaryId ? { ...salary, ...data.salary } : salary
-      );
-      setSalaries(updatedSalaries);
+      setSalaries(prev => prev.map(salary =>
+        salary._id === id ? { ...salary, ...data } : salary
+      ));
+      updateCache('salaries', salaries.map(salary =>
+        salary._id === id ? { ...salary, ...data } : salary
+      ), cache.current.salaries.filters);
       
-      // Update cache
-      updateCache('salaries', updatedSalaries, cache.current.salaries.filters);
-      
-      return data.salary;
+      return data;
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to update salary');
       throw err;
+    } finally {
+      setLoading(false);
     }
   }, [salaries]);
+
+  // History-related functions
+  const fetchDepartmentHistory = useCallback(async (id) => {
+    setLoading(true);
+    try {
+      const { data } = await adminService.getDepartmentHistory(id);
+      setDepartmentHistory(Array.isArray(data) ? data : data?.data?.history || []);
+      setError(null);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to fetch history');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   // Clear cache function for manual cache invalidation
   const clearCache = useCallback((cacheKey = null) => {
     if (cacheKey) {
       cache.current[cacheKey] = { data: null, timestamp: null, loading: false, filters: null };
     } else {
-      // Clear all cache
       Object.keys(cache.current).forEach(key => {
         cache.current[key] = { data: null, timestamp: null, loading: false, filters: null };
       });
@@ -473,34 +605,62 @@ export const AdminProvider = ({ children }) => {
   }, []);
 
   const value = {
+    // State
     employees,
     allLeaves,
     employeeTasks,
     salaries,
     departments,
+    duties,
     departmentHistory,
     loading,
     error,
-    fetchEmployees,
-    getEmployeeDetails,
+
+    // Department functions
     fetchDepartments,
+    getDepartment,
     createDepartment,
-    createDuty,
-    assignDepartment,
+    updateDepartment,
+    deleteDepartment,
+    getDepartmentAnalytics,
+
+    // Employee functions
+    fetchEmployees,
+    getEmployee,
+    getEmployeeDetails,
+    assignEmployeeDuties,
+    updateEmployeeStatus,
     changeEmployeeStatus,
+
+    // Duty functions
+    fetchDuties,
+    createDuty,
+    getDutyFormSchema,
+    assignDepartmentAndDuties,
+    updateDepartmentAndDuties,
+
+    // Task functions
     fetchEmployeeTasks,
     reviewTask,
     getEmployeeTaskStats,
+
+    // Leave functions
     fetchAllLeaves,
-    getLeaveDetails,
-    processLeave,
+    getLeave,
+    updateLeaveStatus,
     getLeaveAnalytics,
     getAdvancedLeaveAnalytics,
-    fetchDepartmentHistory,
+
+    // Salary functions
     fetchSalaries,
     addSalary,
     updateSalary,
-    clearCache // Expose cache clearing function
+
+    // History functions
+    fetchDepartmentHistory,
+
+    // Utility functions
+    clearCache
   };
 
   return (

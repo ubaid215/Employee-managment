@@ -394,7 +394,7 @@ const AdminDashboard = () => {
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Link 
-            to="/admin/employees" 
+            to="/admin/all-employees" 
             className="bg-white p-6 rounded-2xl shadow-lg border border-slate-200/60 flex items-center gap-4 hover:bg-slate-50 transition-all duration-200 group backdrop-blur-sm hover:shadow-xl hover:-translate-y-0.5"
           >
             <div className="p-3 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-xl shadow-lg group-hover:shadow-xl transition-shadow duration-200">
@@ -408,7 +408,7 @@ const AdminDashboard = () => {
           </Link>
 
           <Link 
-            to="/admin/leaves" 
+            to="/admin/leaves-manage" 
             className="bg-white p-6 rounded-2xl shadow-lg border border-slate-200/60 flex items-center gap-4 hover:bg-slate-50 transition-all duration-200 group backdrop-blur-sm hover:shadow-xl hover:-translate-y-0.5"
           >
             <div className="p-3 bg-gradient-to-r from-amber-500 to-orange-500 rounded-xl shadow-lg group-hover:shadow-xl transition-shadow duration-200">

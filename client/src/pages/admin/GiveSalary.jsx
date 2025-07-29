@@ -7,11 +7,11 @@ import {
 
 const GiveSalary = () => {
   const { 
-    employees = [], // Default to empty array to prevent undefined errors
+    employees = [], 
     fetchEmployees, 
     fetchSalaries, 
     addSalary, 
-    salaries = [], // Default to empty array to prevent undefined errors
+    salaries = [], 
     loading 
   } = useAdmin();
 
@@ -31,6 +31,7 @@ const GiveSalary = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [filterMonth, setFilterMonth] = useState('');
+  
 
   useEffect(() => {
     fetchEmployees();

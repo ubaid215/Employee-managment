@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const User = require('../models/User');
 const Department = require('../models/Department');
 const Duty = require('../models/Duty');
@@ -5,30 +6,50 @@ const History = require('../models/History');
 const TaskLog = require('../models/TaskLog');
 const Leave = require('../models/Leave'); 
 const Salary = require('../models/Salary');
+const AppError = require('../utils/appError');
+
 
 // Assign department and duties to employee
 exports.assignDepartmentAndDuties = async (req, res, next) => {
   try {
-    const { userId, departmentId, dutyIds } = req.body;
+    const { userId, departmentId, dutyIds, reason } = req.body;
 
-    // Validate all IDs exist
-    const [user, department] = await Promise.all([
-      User.findById(userId).select('department duties'),
-      Department.findById(departmentId)
-    ]);
+    // Validate input
+    if (!userId || !departmentId || !Array.isArray(dutyIds)) {
+      return next(new AppError('Missing required fields: userId, departmentId, or dutyIds array', 400));
+    }
 
-    if (!user) return next(new AppError('User not found', 404));
-    if (!department) return next(new AppError('Department not found', 404));
+    // Validate MongoDB IDs
+    if (!mongoose.Types.ObjectId.isValid(userId) || 
+        !mongoose.Types.ObjectId.isValid(departmentId)) {
+      return next(new AppError('Invalid ID format', 400));
+    }
 
-    // Validate duties
-    if (dutyIds && dutyIds.length > 0) {
-      const dutiesCount = await Duty.countDocuments({
+    if (dutyIds.some(id => !mongoose.Types.ObjectId.isValid(id))) {
+      return next(new AppError('Invalid duty ID format', 400));
+    }
+
+    // Fetch user
+    const user = await User.findById(userId).select('name email department duties status');
+    if (!user) {
+      return next(new AppError('User not found', 404));
+    }
+
+    // Fetch department
+    const department = await Department.findById(departmentId).select('name duties');
+    if (!department) {
+      return next(new AppError('Department not found', 404));
+    }
+
+    // Check duties belong to department
+    if (dutyIds.length > 0) {
+      const validDuties = await Duty.countDocuments({
         _id: { $in: dutyIds },
         department: departmentId
       });
-      
-      if (dutiesCount !== dutyIds.length) {
-        return next(new AppError('Some duties do not belong to the department', 400));
+
+      if (validDuties !== dutyIds.length) {
+        return next(new AppError('One or more duties do not belong to the specified department', 400));
       }
     }
 
@@ -41,7 +62,7 @@ exports.assignDepartmentAndDuties = async (req, res, next) => {
     user.duties = dutyIds;
     await user.save();
 
-    // Create history record
+    // Save history
     const history = await History.create({
       employee: userId,
       fromDepartment: previousDept,
@@ -49,31 +70,345 @@ exports.assignDepartmentAndDuties = async (req, res, next) => {
       fromDuties: previousDuties,
       toDuties: dutyIds,
       changedBy: req.user.id,
-      reason: req.body.reason || 'Department/duty assignment'
+      reason: reason || 'Department/duty assignment',
+      changeType: previousDept ? 'update' : 'initial'
     });
 
     // Emit real-time updates
-    req.io.to(userId).emit('duty-reassignment', {
-      oldDepartment: previousDept,
-      newDepartment: departmentId,
-      oldDuties: previousDuties,
-      newDuties: dutyIds,
-      changedAt: history.changedAt
-    });
+    if (req.io) {
+      req.io.to(userId).emit('duty-reassignment', {
+        oldDepartment: previousDept,
+        newDepartment: departmentId,
+        oldDuties: previousDuties,
+        newDuties: dutyIds,
+        changedAt: history.changedAt,
+        changedBy: req.user.name
+      });
 
-    req.io.to('admin-room').emit('employee-duty-updated', {
-      employeeId: userId,
-      departmentId,
-      dutyIds,
-      changedBy: req.user.id
-    });
+      req.io.to('admin-room').emit('employee-duty-updated', {
+        employeeId: userId,
+        employeeName: user.name,
+        departmentId,
+        departmentName: department.name,
+        dutyIds,
+        dutyCount: dutyIds.length,
+        changedBy: req.user.id,
+        changedByName: req.user.name,
+        timestamp: new Date()
+      });
+    }
+
+    // Populate and respond
+    const updatedUser = await User.findById(userId)
+      .populate('department', 'name')
+      .populate('duties', 'title');
 
     res.status(200).json({
       status: 'success',
       message: 'Department and duties assigned successfully',
-      user
+      data: {
+        user: updatedUser,
+        history
+      }
     });
 
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+// GET all departments
+exports.getAllDepartments = async (req, res, next) => {
+  try {
+    const departments = await Department.find()
+      .populate('duties', 'title description')
+      .sort({ createdAt: -1 });
+
+    // Add employee count for each department
+    const departmentsWithStats = await Promise.all(
+      departments.map(async (dept) => {
+        const employeeCount = await User.countDocuments({ 
+          department: dept._id, 
+          role: 'employee' 
+        });
+        
+        return {
+          ...dept.toObject(),
+          employeeCount,
+          dutyCount: dept.duties.length
+        };
+      })
+    );
+
+    res.status(200).json({
+      status: 'success',
+      results: departmentsWithStats.length,
+      data: {
+        departments: departmentsWithStats
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// GET single department by ID
+exports.getDepartmentById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const department = await Department.findById(id)
+      .populate('duties', 'title description createdAt')
+      .populate('createdBy', 'name email');
+
+    if (!department) {
+      return next(new AppError('Department not found', 404));
+    }
+
+    // Get employees in this department
+    const employees = await User.find({ 
+      department: id, 
+      role: 'employee' 
+    }).select('name email status createdAt');
+
+    // Get department statistics
+    const stats = {
+      totalEmployees: employees.length,
+      activeEmployees: employees.filter(emp => emp.status === 'active').length,
+      totalDuties: department.duties.length,
+      createdAt: department.createdAt
+    };
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        department: {
+          ...department.toObject(),
+          employees,
+          stats
+        }
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// UPDATE department
+exports.updateDepartment = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { name, description } = req.body;
+
+    // Validate input
+    if (!name) {
+      return next(new AppError('Department name is required', 400));
+    }
+
+    // Check if department exists
+    const existingDept = await Department.findById(id);
+    if (!existingDept) {
+      return next(new AppError('Department not found', 404));
+    }
+
+    // Check for duplicate name (excluding current department)
+    const duplicateDept = await Department.findOne({ 
+      name, 
+      _id: { $ne: id } 
+    });
+    if (duplicateDept) {
+      return next(new AppError('Department name already exists', 400));
+    }
+
+    // Update department
+    const updatedDepartment = await Department.findByIdAndUpdate(
+      id,
+      { 
+        name, 
+        description,
+        updatedAt: new Date() 
+      },
+      { 
+        new: true, 
+        runValidators: true 
+      }
+    ).populate('duties', 'title description');
+
+    // Emit real-time update
+    req.io.to('admin-room').emit('department-updated', {
+      departmentId: id,
+      name,
+      updatedBy: req.user.id
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Department updated successfully',
+      data: {
+        department: updatedDepartment
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// DELETE department
+exports.deleteDepartment = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { transferDepartmentId } = req.body; // Optional: department to transfer employees to
+
+    // Check if department exists
+    const department = await Department.findById(id);
+    if (!department) {
+      return next(new AppError('Department not found', 404));
+    }
+
+    // Check if there are employees in this department
+    const employeesInDept = await User.find({ 
+      department: id, 
+      role: 'employee' 
+    });
+
+    if (employeesInDept.length > 0) {
+      if (!transferDepartmentId) {
+        return next(new AppError(
+          `Cannot delete department. ${employeesInDept.length} employees are assigned to this department. Please provide a transferDepartmentId to move them to another department first.`, 
+          400
+        ));
+      }
+
+      // Validate transfer department exists
+      const transferDept = await Department.findById(transferDepartmentId);
+      if (!transferDept) {
+        return next(new AppError('Transfer department not found', 404));
+      }
+
+      // Transfer employees to new department
+      await User.updateMany(
+        { department: id, role: 'employee' },
+        { 
+          department: transferDepartmentId,
+          duties: [] // Clear duties as they might not be compatible
+        }
+      );
+
+      // Create history records for transferred employees
+      const historyRecords = employeesInDept.map(employee => ({
+        employee: employee._id,
+        fromDepartment: id,
+        toDepartment: transferDepartmentId,
+        fromDuties: employee.duties,
+        toDuties: [],
+        changedBy: req.user.id,
+        reason: `Department deletion - transferred to ${transferDept.name}`
+      }));
+
+      await History.insertMany(historyRecords);
+
+      // Emit real-time updates to affected employees
+      employeesInDept.forEach(employee => {
+        req.io.to(employee._id.toString()).emit('department-changed', {
+          oldDepartment: id,
+          newDepartment: transferDepartmentId,
+          reason: 'Department was deleted',
+          transferredAt: new Date()
+        });
+      });
+    }
+
+    // Delete all duties in this department
+    const duties = await Duty.find({ department: id });
+    await Duty.deleteMany({ department: id });
+
+    // Delete the department
+    await Department.findByIdAndDelete(id);
+
+    // Emit real-time update
+    req.io.to('admin-room').emit('department-deleted', {
+      departmentId: id,
+      departmentName: department.name,
+      employeesTransferred: employeesInDept.length,
+      transferDepartment: transferDepartmentId ? transferDept.name : null,
+      deletedBy: req.user.id
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: `Department deleted successfully. ${employeesInDept.length} employees transferred to ${transferDepartmentId ? transferDept.name : 'another department'}.`,
+      data: {
+        deletedDepartment: department.name,
+        employeesTransferred: employeesInDept.length,
+        dutiesDeleted: duties.length
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// GET department analytics
+exports.getDepartmentAnalytics = async (req, res, next) => {
+  try {
+    // Basic department stats
+    const totalDepartments = await Department.countDocuments();
+    
+    // Department with most employees
+    const departmentStats = await User.aggregate([
+      { $match: { role: 'employee' } },
+      { $group: { 
+        _id: '$department', 
+        employeeCount: { $sum: 1 },
+        activeEmployees: {
+          $sum: { $cond: [{ $eq: ['$status', 'active'] }, 1, 0] }
+        }
+      }},
+      { $lookup: {
+        from: 'departments',
+        localField: '_id',
+        foreignField: '_id',
+        as: 'department'
+      }},
+      { $unwind: '$department' },
+      { $project: {
+        departmentName: '$department.name',
+        employeeCount: 1,
+        activeEmployees: 1,
+        inactiveEmployees: { $subtract: ['$employeeCount', '$activeEmployees'] }
+      }},
+      { $sort: { employeeCount: -1 } }
+    ]);
+
+    // Department with most duties
+    const dutyStats = await Department.aggregate([
+      { $lookup: {
+        from: 'duties',
+        localField: '_id',
+        foreignField: 'department',
+        as: 'duties'
+      }},
+      { $project: {
+        name: 1,
+        dutyCount: { $size: '$duties' },
+        createdAt: 1
+      }},
+      { $sort: { dutyCount: -1 } }
+    ]);
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        totalDepartments,
+        departmentEmployeeStats: departmentStats,
+        departmentDutyStats: dutyStats,
+        summary: {
+          mostPopularDepartment: departmentStats[0] || null,
+          departmentWithMostDuties: dutyStats[0] || null
+        }
+      }
+    });
   } catch (error) {
     next(error);
   }
@@ -589,11 +924,12 @@ exports.approveLeave = async (req, res, next) => {
 
 exports.addSalary = async (req, res, next) => {
   try {
-    const { employeeId, amount, type, month, note, advanceAmount, fullPayment, status } = req.body;
+    const { employee, amount, type, month, note, advanceAmount, fullPayment, status } = req.body;
+    console.log('Request body:', req.body);
 
     // Check for existing salary record for this employee and month
     const existingSalary = await Salary.findOne({ 
-      employee: employeeId, 
+      employee: employee,  // Changed from employeeId to employee
       month: month 
     });
 
@@ -617,7 +953,7 @@ exports.addSalary = async (req, res, next) => {
 
     // Create new record if none exists
     const newSalary = await Salary.create({
-      employee: employeeId,
+      employee: employee,  // Changed from employeeId to employee
       amount,
       type,
       month,
@@ -634,6 +970,7 @@ exports.addSalary = async (req, res, next) => {
     });
 
   } catch (error) {
+    console.error('Salary creation error:', error);  // Add this for better debugging
     next(error);
   }
 };
@@ -658,6 +995,7 @@ exports.getAllSalaries = async (req, res, next) => {
       data: { salaries }
     });
   } catch (error) {
+    console.error('Get salaries error:', error);
     next(error);
   }
 };
@@ -689,69 +1027,213 @@ exports.updateSalary = async (req, res, next) => {
 
 exports.createDepartment = async (req, res, next) => {
   try {
-    const { name } = req.body;
+    // Destructure and validate input format
+    let { name, description } = req.body;
 
-    // Validate input
-    if (!name) {
-      return next(new AppError('Department name is required', 400));
+    // Handle case where name might be nested in an object
+    if (name && typeof name === 'object') {
+      if (name.name) {
+        // Extract name if it was sent as {name: {name: "Dept", description: "Desc"}}
+        name = name.name;
+      } else {
+        return next(new AppError('Invalid department name format', 400));
+      }
     }
 
-    // Check for duplicate department
-    const existingDept = await Department.findOne({ name });
+    // Validate required fields
+    if (!name || typeof name !== 'string') {
+      return next(new AppError('Department name is required and must be a string', 400));
+    }
+
+    // Trim and validate length
+    const trimmedName = name.trim();
+    if (trimmedName.length === 0) {
+      return next(new AppError('Department name cannot be empty', 400));
+    }
+    if (trimmedName.length > 50) {
+      return next(new AppError('Department name cannot exceed 50 characters', 400));
+    }
+
+    // Check for duplicate department (case insensitive)
+    const existingDept = await Department.findOne({ 
+      name: { $regex: new RegExp(`^${trimmedName}$`, 'i') } 
+    });
     if (existingDept) {
       return next(new AppError('Department already exists', 400));
     }
 
+    // Process description
+    let processedDescription = '';
+    if (description) {
+      if (typeof description === 'object' && description.description) {
+        // Handle nested description if present
+        processedDescription = description.description;
+      } else if (typeof description === 'string') {
+        processedDescription = description;
+      }
+      
+      // Trim and validate description length
+      processedDescription = processedDescription.trim();
+      if (processedDescription.length > 500) {
+        return next(new AppError('Description cannot exceed 500 characters', 400));
+      }
+    }
+
     // Create new department
-    const department = await Department.create({ name });
+    const department = await Department.create({ 
+      name: trimmedName,
+      description: processedDescription
+    });
+
+    // Emit real-time update
+    if (req.io) {
+      req.io.to('admin-room').emit('department-created', {
+        departmentId: department._id,
+        name: department.name,
+        description: department.description,
+        createdBy: req.user?.id || 'system'
+      });
+    }
 
     res.status(201).json({
       status: 'success',
+      message: 'Department created successfully',
       data: {
         department
       }
     });
 
   } catch (error) {
-    next(error);
+    console.error('Department creation error:', error);
+    
+    // Handle specific mongoose errors
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(val => val.message);
+      return next(new AppError(`Validation failed: ${messages.join(', ')}`, 400));
+    }
+    
+    // Handle duplicate key error (fallback)
+    if (error.code === 11000) {
+      return next(new AppError('Department name must be unique', 400));
+    }
+    
+    next(new AppError('An unexpected error occurred while creating department', 500));
   }
 };
 
+
 exports.createDuty = async (req, res, next) => {
   try {
-    // Add validation for empty body
+    console.log('🔧 [createDuty] Request body:', req.body);
+
+    // Validate request body
     if (!req.body || Object.keys(req.body).length === 0) {
+      console.warn('⚠️ [createDuty] Empty request body');
       return next(new AppError('Request body cannot be empty', 400));
     }
 
-    const { title, description, department, formSchema } = req.body;
+    // Extract fields with proper defaults
+    const { 
+      title, 
+      description = '', 
+      department, 
+      formSchema = { fields: [] }, 
+      priority = 'medium',
+      deadline,
+      estimatedTime,
+      tags = []
+    } = req.body;
 
-    // More detailed validation
+    console.log('📌 [createDuty] Extracted Fields:', { 
+      title, 
+      description, 
+      department, 
+      formSchema: formSchema ? 'exists' : 'missing',
+      priority,
+      deadline,
+      estimatedTime
+    });
+
+    // Validate required fields
     if (!title) {
+      console.warn('⚠️ [createDuty] Missing title');
       return next(new AppError('Title is required', 400));
     }
 
     if (!department) {
+      console.warn('⚠️ [createDuty] Missing department ID');
       return next(new AppError('Department ID is required', 400));
     }
 
+    // Validate department ID format
+    if (!mongoose.Types.ObjectId.isValid(department)) {
+      return next(new AppError('Invalid department ID format', 400));
+    }
+
+    // Check department exists
     const deptExists = await Department.findById(department);
+    console.log('🔍 [createDuty] Department found:', deptExists ? deptExists.name : 'Not Found');
+
     if (!deptExists) {
       return next(new AppError('Department not found', 404));
     }
 
-    // Create duty with the authenticated user as creator
+    // Validate deadline if provided
+    if (deadline && new Date(deadline) < new Date()) {
+      return next(new AppError('Deadline must be in the future', 400));
+    }
+
+    // Validate form schema structure
+    if (formSchema) {
+      if (!Array.isArray(formSchema.fields)) {
+        return next(new AppError('Form schema fields must be an array', 400));
+      }
+
+      // Validate each field in the form schema
+      for (const field of formSchema.fields) {
+        if (!field.name || !field.type) {
+          return next(new AppError('Each form field must have a name and type', 400));
+        }
+
+        // Validate options for select/radio/checkbox
+        if (['select', 'radio', 'checkbox'].includes(field.type) && 
+            (!field.options || field.options.length === 0)) {
+          return next(new AppError(
+            `Field "${field.name}" of type "${field.type}" must have options`, 
+            400
+          ));
+        }
+      }
+    }
+
+    // Create the duty with all fields
     const duty = await Duty.create({
       title,
-      description: description || '', // Default empty string if not provided
+      description,
       department,
-      formSchema: formSchema || { fields: [] }, // Default empty schema
-      createdBy: req.user.id // Add the authenticated user's ID
+      formSchema: {
+        title: formSchema.title || `${title} Submission Form`,
+        description: formSchema.description || `Please complete the form for ${title}`,
+        fields: formSchema.fields || [],
+        submitButtonText: formSchema.submitButtonText || 'Submit',
+        allowMultipleSubmissions: formSchema.allowMultipleSubmissions !== false,
+        submissionLimit: formSchema.submissionLimit || null
+      },
+      priority,
+      deadline,
+      estimatedTime,
+      tags,
+      createdBy: req.user.id
     });
 
+    console.log('✅ [createDuty] Duty created with ID:', duty._id);
+
+    // Add duty to department
     await Department.findByIdAndUpdate(department, {
       $push: { duties: duty._id }
-    });
+    }, { new: true });
+
+    console.log('📁 [createDuty] Duty pushed to department');
 
     res.status(201).json({
       status: 'success',
@@ -761,13 +1243,109 @@ exports.createDuty = async (req, res, next) => {
     });
 
   } catch (error) {
-    // Improved error handling
+    // Handle duplicate key error (unique title per department)
+    if (error.code === 11000) {
+      const message = `A duty with this title already exists in the selected department`;
+      console.error('❌ [createDuty] Duplicate duty:', message);
+      return next(new AppError(message, 400));
+    }
+
+    // Handle validation errors
     if (error.name === 'ValidationError') {
       const messages = Object.values(error.errors).map(val => val.message);
+      console.error('❌ [createDuty] Validation Error:', messages);
       return next(new AppError(`Validation failed: ${messages.join(', ')}`, 400));
     }
+
+    console.error('❌ [createDuty] Unexpected Error:', error);
+    next(error);
+  }
+};
+
+exports.getDutyFormSchema = async (req, res, next) => {
+  try {
+    const duty = await Duty.findById(req.params.id)
+      .select('title formSchema');
     
-    console.error('Error in createDuty:', error);
+    if (!duty) {
+      return next(new AppError('Duty not found', 404));
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        formSchema: duty.formSchema
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.validateFormSubmission = async (req, res, next) => {
+  try {
+    const duty = await Duty.findById(req.params.id);
+    
+    if (!duty) {
+      return next(new AppError('Duty not found', 404));
+    }
+
+    const validationResult = duty.validateSubmission(req.body);
+    
+    res.status(200).json({
+      status: 'success',
+      data: validationResult
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+// GET all duties with filtering options
+exports.getAllDuties = async (req, res, next) => {
+  try {
+    const { department, search, priority } = req.query;
+    const filter = {};
+    
+    if (department) filter.department = department;
+    if (priority) filter.priority = priority;
+    if (search) {
+      filter.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } },
+        { tags: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    const duties = await Duty.find(filter)
+      .populate('department', 'name')
+      .populate('createdBy', 'name')
+      .sort({ createdAt: -1 });
+
+    // Count employees assigned to each duty
+    const dutiesWithStats = await Promise.all(
+      duties.map(async (duty) => {
+        const employeeCount = await User.countDocuments({ 
+          duties: duty._id,
+          role: 'employee'
+        });
+        
+        return {
+          ...duty.toObject(),
+          employeeCount
+        };
+      })
+    );
+
+    res.status(200).json({
+      status: 'success',
+      results: dutiesWithStats.length,
+      data: {
+        duties: dutiesWithStats
+      }
+    });
+  } catch (error) {
     next(error);
   }
 };

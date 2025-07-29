@@ -3,7 +3,8 @@ import { NavLink } from 'react-router-dom';
 import { 
   Home, Users, Briefcase, 
   Calendar, DollarSign, Clock,
-  PieChart, Settings, LogOut
+  PieChart, Settings, LogOut,
+  Laptop2
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -14,6 +15,7 @@ const AdminSidebar = () => {
     { path: '/admin', icon: Home, label: 'Dashboard' },
     { path: '/admin/all-employees', icon: Users, label: 'Employees' },
     { path: '/admin/departments', icon: Briefcase, label: 'Departments' },
+    { path: '/admin/duties-manage', icon: Laptop2, label: 'Create Duties' },
     { path: '/admin/leaves-manage', icon: Calendar, label: 'Leave Requests' },
     { path: '/admin/add-salary', icon: DollarSign, label: 'Salaries' },
     { path: '/admin/settings', icon: Settings, label: 'Settings' }
@@ -43,7 +45,7 @@ const AdminSidebar = () => {
         </div>
         
         {/* Navigation */}
-        <div className="flex flex-col flex-grow px-4 py-6 overflow-y-auto">
+        <div className="flex flex-col flex-grow px-4 py-2 overflow-y-auto">
           <nav className="flex-1 space-y-1">
             {navItems.map((item) => (
               <NavLink

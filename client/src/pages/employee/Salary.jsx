@@ -203,11 +203,11 @@ const Salary = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">
-                          ${(record?.amount || 0).toLocaleString()}
+                          Pkr{(record?.amount || 0).toLocaleString()}
                         </div>
                         {(record?.advanceAmount || 0) > 0 && (
                           <div className="text-xs text-gray-500">
-                            (Advance: ${record.advanceAmount.toLocaleString()})
+                            (Advance: Pkr{record.advanceAmount.toLocaleString()})
                           </div>
                         )}
                       </td>
@@ -258,7 +258,7 @@ const Salary = () => {
                   <div className="mt-2">
                     <div className="flex justify-between">
                       <span className="text-sm font-medium">
-                        ${(record?.amount || 0).toLocaleString()}
+                        Pkr{(record?.amount || 0).toLocaleString()}
                       </span>
                       <span className="text-xs text-gray-500">
                         {record?.type === 'advance' ? 'Advance' : 'Full Payment'}
@@ -266,7 +266,7 @@ const Salary = () => {
                     </div>
                     {(record?.advanceAmount || 0) > 0 && (
                       <div className="text-xs text-gray-500 mt-1">
-                        Advance: ${record.advanceAmount.toLocaleString()}
+                        Advance: Pkr{record.advanceAmount.toLocaleString()}
                       </div>
                     )}
                   </div>

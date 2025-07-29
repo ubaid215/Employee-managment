@@ -8,6 +8,12 @@ const departmentSchema = new mongoose.Schema({
     trim: true,
     maxlength: [50, 'Department name cannot exceed 50 characters']
   },
+  description: {
+    type: String,
+    trim: true,
+    maxlength: [500, 'Department description cannot exceed 500 characters'],
+    default: ''
+  },
   duties: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Duty'
@@ -23,14 +29,13 @@ const departmentSchema = new mongoose.Schema({
   }
 });
 
-
-// Update timestamp on save
+// Update timestamp whenever department is modified
 departmentSchema.pre('save', function(next) {
   this.updatedAt = Date.now();
   next();
 });
 
-// Cascade delete duties when department is deleted
+// Cascade delete all duties when department is deleted
 departmentSchema.pre('remove', async function(next) {
   await this.model('Duty').deleteMany({ department: this._id });
   next();

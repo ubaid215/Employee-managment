@@ -2,6 +2,7 @@ const Duty = require('../models/Duty');
 const TaskLog = require('../models/TaskLog');
 const Leave = require('../models/Leave');
 const Salary = require('../models/Salary');
+const Department = require('../models/Department');
 const User = require('../models/User');
 const fs = require('fs').promises;
 const path = require('path');
@@ -86,20 +87,31 @@ exports.deleteProfileImage = async (req, res, next) => {
 // Get employee profile with duties
 exports.getProfile = async (req, res) => {
   try {
+    console.log('👤 Fetching profile for user ID:', req.user.id);
+
     const user = await User.findById(req.user.id)
       .populate('department', 'name')
       .populate('duties', 'title description');
-      
+
     if (!user) {
+      console.log('❌ User not found');
       return res.status(404).json({ message: 'User not found' });
     }
-    
+
+    console.log('✅ User profile retrieved:', {
+      id: user._id,
+      name: user.name,
+      department: user.department?.name || null,
+    });
+
     res.status(200).json(user);
-    
+
   } catch (error) {
+    console.error('🔥 Error fetching profile:', error.message);
     res.status(500).json({ message: 'Server error' });
   }
 };
+
 
 // PATCH /api/employee/me — Update own profile (status, etc.)
 exports.updateProfile = async (req, res, next) => {
@@ -128,19 +140,102 @@ exports.updateProfile = async (req, res, next) => {
 
 
 // Get employee's assigned duties
-exports.getDuties = async (req, res) => {
+exports.MyDuties = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id)
-      .populate('duties', 'title description');
-      
-    if (!user) {
+    console.log('🔍 MyDuties called for user:', req.user.id);
+    
+    // First, let's check if the user exists and has duties
+    const userCheck = await User.findById(req.user.id).select('duties');
+    console.log('👤 User found:', !!userCheck);
+    console.log('📋 User duties array:', userCheck?.duties);
+    
+    if (!userCheck) {
       return res.status(404).json({ message: 'User not found' });
     }
     
-    res.status(200).json(user.duties);
+    if (!userCheck.duties || userCheck.duties.length === 0) {
+      console.log('⚠️ User has no duties assigned');
+      return res.status(200).json([]);
+    }
+    
+    // Now populate the duties
+    const user = await User.findById(req.user.id)
+      .populate({
+        path: 'duties',
+        model: 'Duty', // Explicitly specify the model name
+        select: 'title description priority estimatedTime isActive tags formSchema department createdAt',
+        populate: {
+          path: 'department',
+          model: 'Department', // Explicitly specify the model name
+          select: 'name'
+        }
+      });
+    
+    console.log('📊 Populated user duties:', user.duties?.length || 0);
+    
+    // Check if populate worked
+    if (!user.duties || user.duties.length === 0) {
+      console.log('❌ Populate failed - checking individual duties...');
+      
+      // Try to fetch duties individually for debugging
+      const Duty = require('../models/Duty'); // Adjust path as needed
+      const dutyIds = userCheck.duties;
+      const individualDuties = await Duty.find({ _id: { $in: dutyIds } });
+      console.log('🔍 Individual duty fetch result:', individualDuties.length);
+      
+      if (individualDuties.length > 0) {
+        console.log('✅ Duties exist in DB, populate issue confirmed');
+        // Return the individual duties as fallback
+        const fallbackDuties = individualDuties
+          .filter(duty => duty.isActive)
+          .map(duty => ({
+            _id: duty._id,
+            id: duty._id.toString(),
+            title: duty.title,
+            name: duty.title,
+            description: duty.description,
+            priority: duty.priority,
+            estimatedTime: duty.estimatedTime,
+            isActive: duty.isActive,
+            tags: duty.tags || [],
+            department: duty.department, // Will be ObjectId, not populated
+            fieldCount: duty.formSchema?.fields?.length || 0,
+            createdAt: duty.createdAt
+          }));
+        
+        return res.status(200).json(fallbackDuties);
+      }
+    }
+    
+    // Filter and transform duties if populate worked
+    const activeDuties = (user.duties || [])
+      .filter(duty => duty && duty.isActive)
+      .map(duty => ({
+        _id: duty._id,
+        id: duty._id.toString(),
+        title: duty.title,
+        name: duty.title,
+        description: duty.description,
+        priority: duty.priority,
+        estimatedTime: duty.estimatedTime,
+        isActive: duty.isActive,
+        tags: duty.tags || [],
+        department: duty.department,
+        fieldCount: duty.formSchema?.fields?.length || 0,
+        createdAt: duty.createdAt
+      }));
+    
+    console.log('✅ Returning duties:', activeDuties.length);
+    res.status(200).json(activeDuties);
     
   } catch (error) {
-    res.status(500).json({ message: 'Server error' });
+    console.error('❌ MyDuties error:', error);
+    console.error('Stack trace:', error.stack);
+    res.status(500).json({ 
+      message: 'Server error', 
+      error: error.message,
+      userId: req.user?.id
+    });
   }
 };
 
@@ -551,10 +646,16 @@ exports.downloadSalaryPDF = async (req, res) => {
 // GET /api/departments
 exports.getAllDepartments = async (req, res) => {
   try {
+    console.log('Fetching departments...');  // Debug log
     const departments = await Department.find().select('name description');
+    console.log('Departments found:', departments.length);  // Debug log
     res.status(200).json(departments);
   } catch (err) {
-    res.status(500).json({ message: 'Server error' });
+    console.error('Department fetch error:', err);  // Detailed error logging
+    res.status(500).json({ 
+      message: 'Failed to fetch departments',
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
   }
 };
 

@@ -28,6 +28,14 @@ const Department = () => {
     error,
   } = useAdmin();
 
+  // Debug: Check what functions are available
+  // console.log('Available admin functions:', {
+  //   fetchDepartments: typeof fetchDepartments,
+  //   createDepartment: typeof createDepartment,
+  //   updateDepartment: typeof updateDepartment,
+  //   deleteDepartment: typeof deleteDepartment,
+  // });
+
   const [isCreating, setIsCreating] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState({ name: "", description: "" });
@@ -57,6 +65,7 @@ const Department = () => {
   };
 
   const handleCreate = async () => {
+    // console.log('Form data before submit:', formData);
     if (!validateForm()) return;
 
     try {
@@ -64,6 +73,7 @@ const Department = () => {
       setIsCreating(false);
       setFormData({ name: "", description: "" });
     } catch (err) {
+      console.error('Submission error:', error);
       console.error("Department creation failed:", err);
     }
   };
@@ -81,17 +91,58 @@ const Department = () => {
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm("Are you sure you want to delete this department?")) {
+    if (!deleteDepartment) {
+      console.error('deleteDepartment function is not available');
+      alert('Delete function is not available. Please check your AdminContext.');
+      return;
+    }
+
+    const departmentToDelete = validDepartments.find(dept => dept._id === id);
+    const hasEmployees = departmentToDelete && departmentToDelete.employeeCount > 0;
+
+    let transferDepartmentId = null;
+
+    if (hasEmployees) {
+      // Show options for transferring employees
+      const otherDepartments = validDepartments.filter(dept => dept._id !== id);
+      
+      if (otherDepartments.length === 0) {
+        alert("Cannot delete this department. There are no other departments to transfer employees to.");
+        return;
+      }
+
+      const transferOptions = otherDepartments.map(dept => `${dept.name} (ID: ${dept._id})`).join('\n');
+      const selectedDept = prompt(
+        `This department has ${departmentToDelete.employeeCount} employees. Please enter the ID of the department to transfer them to:\n\nAvailable departments:\n${transferOptions}`
+      );
+
+      if (!selectedDept) {
+        return; // User cancelled
+      }
+
+      transferDepartmentId = selectedDept.trim();
+      
+      // Validate the selected department exists
+      if (!otherDepartments.find(dept => dept._id === transferDepartmentId)) {
+        alert("Invalid department ID selected.");
+        return;
+      }
+    }
+
+    if (window.confirm(`Are you sure you want to delete the "${departmentToDelete?.name}" department?${hasEmployees ? ` Employees will be transferred to the selected department.` : ''}`)) {
       try {
-        await deleteDepartment(id);
+        await deleteDepartment(id, transferDepartmentId);
       } catch (err) {
         console.error("Department deletion failed:", err);
+        alert(`Failed to delete department: ${err.response?.data?.message || err.message}`);
       }
     }
   };
 
-  // Prepare chart data
-  const departmentStats = (departments || []).map((dept) => ({
+  // Filter out null/undefined departments and prepare chart data
+  const validDepartments = (departments || []).filter(dept => dept && dept.name);
+  
+  const departmentStats = validDepartments.map((dept) => ({
     name: dept.name,
     value: dept.employeeCount || 0,
   }));
@@ -244,19 +295,19 @@ const Department = () => {
             </h2>
           </div>
 
-          {loading && !(departments || []).length ? (
+          {loading && !validDepartments.length ? (
             <div className="p-8 flex justify-center">
               <Loader2 size={24} className="animate-spin text-gray-400" />
             </div>
           ) : error ? (
             <div className="p-4 text-center text-red-500">{error}</div>
-          ) : (departments || []).length === 0 ? (
+          ) : validDepartments.length === 0 ? (
             <div className="p-8 text-center text-gray-500">
               No departments found. Create your first department.
             </div>
           ) : (
             <div className="divide-y divide-gray-200">
-              {departments.map((dept) => (
+              {validDepartments.map((dept) => (
                 <div
                   key={dept._id}
                   className="p-4 hover:bg-gray-50 transition-colors"

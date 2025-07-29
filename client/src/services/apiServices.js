@@ -171,53 +171,79 @@ const employeeService = {
 };
 
 /*********************
- * ADMIN SERVICES
+ * ADMIN SERVICES - UPDATED
  *********************/
 const adminService = {
-  // Departments
-  getAllDepartments: () => queuedRequest(() => api.get('/admin/departments')), // Add this line
-  createDepartment: (name) => queuedRequest(() => api.post('/admin/departments', { name })),
+  // Departments - Full CRUD operations
+  getDepartments: (params = {}) => 
+    queuedRequest(() => api.get('/admin/departments', { params })),
+  getDepartment: (id) => 
+    queuedRequest(() => api.get(`/admin/departments/${id}`)),
+  createDepartment: (data) => 
+    queuedRequest(() => api.post('/admin/departments', data)),
+  updateDepartment: (id, data) => 
+    queuedRequest(() => api.patch(`/admin/departments/${id}`, data)),
+  deleteDepartment: (id, transferId = null) => 
+    queuedRequest(() => api.delete(`/admin/departments/${id}`, { 
+      data: transferId ? { transferDepartmentId: transferId } : {} 
+    })),
+  getDepartmentAnalytics: () => 
+    queuedRequest(() => api.get('/admin/departments/analytics/stats')),
+  getDepartmentHistory: (id) => 
+    queuedRequest(() => api.get(`/admin/department-history/${id}`)),
 
   // Duties
-  createDuty: (dutyData) => queuedRequest(() => api.post('/admin/duties', dutyData)),
+  getDuties: (params = {}) => 
+    queuedRequest(() => api.get('/admin/duties', { params })),
+  createDuty: (data) => 
+    queuedRequest(() => api.post('/admin/duties', data)),
+  getDutyFormSchema: (id) => 
+    queuedRequest(() => api.get(`/admin/duties/${id}/form-schema`)),
+  assignDepartmentAndDuties: (data) => 
+    queuedRequest(() => api.post('/admin/assign-duty', data)),
+  updateDepartmentAndDuties: (data) => 
+    queuedRequest(() => api.patch('/admin/assign-duty', data)),
 
   // Employees
-  getAllEmployees: () => queuedRequest(() => api.get('/admin/employees')),
-  getEmployeeDetails: (id) => queuedRequest(() => api.get(`/admin/employees/${id}`)),
-  assignDepartmentAndDuties: (userId, departmentId, dutyIds, reason) => 
-    queuedRequest(() => api.post('/admin/assign-duty', { userId, departmentId, dutyIds, reason })),
-  changeEmployeeStatus: (userId, status) => 
+  getEmployees: (params = {}) => 
+    queuedRequest(() => api.get('/admin/employees', { params })),
+  getEmployee: (id) => 
+    queuedRequest(() => api.get(`/admin/employees/${id}`)),
+  assignEmployeeDuties: (userId, departmentId, dutyIds, reason) => 
+    queuedRequest(() => api.patch('/admin/assign-duty', { userId, departmentId, dutyIds, reason })),
+  updateEmployeeStatus: (userId, status) => 
     queuedRequest(() => api.patch('/admin/change-status', { userId, status })),
 
   // Tasks
-  getEmployeeTasks: (filters = {}) => 
-    queuedRequest(() => api.get('/admin/employee-tasks', { params: filters })),
-  reviewTask: (taskId, status, feedback) => 
-    queuedRequest(() => api.patch(`/admin/tasks/${taskId}/review`, { status, feedback })),
-  getEmployeeTaskStats: (employeeId) => 
-    queuedRequest(() => api.get(`/admin/employees/${employeeId}/task-stats`)),
-
-  // History
-  getDepartmentHistory: (departmentId) => 
-    queuedRequest(() => api.get(`/admin/department-history/${departmentId}`)),
+  getTasks: (params = {}) => 
+    queuedRequest(() => api.get('/admin/employee-tasks', { params })),
+  reviewTask: (id, status, feedback) => 
+    queuedRequest(() => api.patch(`/admin/tasks/${id}/review`, { status, feedback })),
+  getEmployeeTaskStats: (id) => 
+    queuedRequest(() => api.get(`/admin/employees/${id}/task-stats`)),
 
   // Leaves
-  getAllLeaves: (filters = {}) => 
-    queuedRequest(() => api.get('/admin/leaves', { params: filters })),
-  getLeaveDetails: (leaveId) => queuedRequest(() => api.get(`/admin/leaves/${leaveId}`)),
-  approveLeave: (leaveId, decision) => 
-    queuedRequest(() => api.patch(`/admin/leaves/${leaveId}`, decision)),
-  getLeaveAnalytics: () => queuedRequest(() => api.get('/admin/leaves/analytics')),
-  getAdvancedLeaveAnalytics: (filters = {}) => 
-    queuedRequest(() => api.get('/admin/leaves/advanced-analytics', { params: filters })),
+  getLeaves: (params = {}) => 
+    queuedRequest(() => api.get('/admin/leaves', { params })),
+  getLeave: (id) => 
+    queuedRequest(() => api.get(`/admin/leaves/${id}`)),
+  updateLeaveStatus: (id, decision) => 
+    queuedRequest(() => api.patch(`/admin/leaves/${id}`, decision)),
+  getLeaveAnalytics: () => 
+    queuedRequest(() => api.get('/admin/leaves/analytics')),
+  getAdvancedLeaveAnalytics: (params = {}) => 
+    queuedRequest(() => api.get('/admin/leaves/advanced-analytics', { params })),
 
-  // Salary
-  getAllSalaries: (filters = {}) => 
-    queuedRequest(() => api.get('/admin/salaries', { params: filters })),
-  addSalary: (salaryData) => queuedRequest(() => api.post('/admin/salaries', salaryData)),
-  updateSalary: (salaryId, updates) => 
-    queuedRequest(() => api.patch(`/admin/salaries/${salaryId}`, updates)),
+  // Salaries
+  getSalaries: (params = {}) => 
+    queuedRequest(() => api.get('/admin/salaries', { params })),
+  createSalary: (data) => 
+    queuedRequest(() => api.post('/admin/salaries', data)),
+  updateSalary: (id, data) => 
+    queuedRequest(() => api.patch(`/admin/salaries/${id}`, data)),
 };
+
+export default adminService;
 
 // Clear cache function
 export const clearApiCache = () => {

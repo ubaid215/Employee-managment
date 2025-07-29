@@ -14,10 +14,11 @@ const {
   updateProfileImage,
   deleteProfileImage,
   getMyLeaveAnalytics,
-  getDuties,
+  MyDuties,
   getMyDutyHistory
 } = require('../controllers/employeeController');
 const { protect } = require('../middlewares/authMiddleware');
+
 
 // All routes protected
 router.use(protect);
@@ -47,9 +48,9 @@ router.get('/salary', getSalary);
 router.get('/salary/pdf/:id', downloadSalaryPDF);
 
 router.get('/departments', getAllDepartments);
+router.get('/my-duties', MyDuties); 
 router.get('/duties', getAllDuties);
 router.get('/duty-history', getMyDutyHistory);
-router.get('/my-duties', getDuties); 
 
 
 

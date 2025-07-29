@@ -1,10 +1,23 @@
 const express = require('express');
 const router = express.Router();
 const {
-  createDepartment, 
+  // Department CRUD operations
+  createDepartment,
+  getAllDepartments,
+  getDepartmentById,
+  updateDepartment,
+  deleteDepartment,
+  getDepartmentAnalytics,
+  
+  // Duty operations
+  createDuty,
+  getDutyFormSchema,
+  getAllDuties,
+  
+  
+  // Other existing functions
   assignDepartmentAndDuties,
   changeStatus,
-  createDuty,
   viewEmployeeTasks,
   reviewTask,
   getEmployeeTaskStats,
@@ -24,14 +37,30 @@ const { protect, isAdmin } = require('../middlewares/authMiddleware');
 
 router.use(protect, isAdmin);
 
-// Department management
-router.post('/departments', createDepartment);
-router.post('/duties', createDuty);
+// Department management - Complete CRUD
+router.route('/departments')
+  .get(getAllDepartments)
+  .post(createDepartment);
+
+router.route('/departments/:id')
+  .get(getDepartmentById)
+  .patch(updateDepartment)
+  .delete(deleteDepartment);
+
+router.get('/departments/analytics/stats', getDepartmentAnalytics);
+
+// Duty management
+router.route('/duties')
+  .post(createDuty)
+  .get(getAllDuties) 
+
+router.get('/duties/:id/form-schema', getDutyFormSchema);
+router.post('/assign-duty', assignDepartmentAndDuties);
+router.patch('/assign-duty', assignDepartmentAndDuties);
 
 // Employee management
 router.get('/employees', getAllEmployees);
 router.get('/employees/:id', getEmployee);
-router.post('/assign-duty', assignDepartmentAndDuties);
 router.patch('/change-status', changeStatus);
 
 // Task management
@@ -45,9 +74,9 @@ router.get('/department-history/:id', viewDepartmentHistory);
 // Leave management
 router.get('/leaves', getAllLeaves);
 router.get('/leaves/analytics', getLeaveAnalytics);
+router.get('/leaves/advanced-analytics', getAdminLeaveAnalytics);
 router.get('/leaves/:id', getLeaveById);
 router.patch('/leaves/:id', approveLeave);
-router.get('/leaves/advanced-analytics', getAdminLeaveAnalytics);
 
 // Salary management
 router.get('/salaries', getAllSalaries);
