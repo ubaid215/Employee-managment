@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 
-// Define field schema for form fields
 const fieldSchema = new mongoose.Schema({
   name: { 
     type: String, 
@@ -11,23 +10,9 @@ const fieldSchema = new mongoose.Schema({
   type: {
     type: String,
     enum: [
-      'text',       // Single line text input
-      'textarea',   // Multi-line text input
-      'number',     // Number input
-      'date',       // Date picker
-      'datetime',   // Date and time picker
-      'time',       // Time picker
-      'select',     // Dropdown selection
-      'radio',      // Radio buttons
-      'checkbox',   // Checkboxes
-      'url',        // URL input with validation
-      'email',      // Email input with validation
-      'tel',        // Phone number input
-      'password',   // Password input
-      'file',       // File upload
-      'range',      // Slider/range input
-      'color',      // Color picker
-      'search'      // Search input
+      'text', 'textarea', 'number', 'date', 'datetime', 'time',
+      'select', 'radio', 'checkbox', 'url', 'email', 'tel',
+      'password', 'file', 'range', 'color', 'search'
     ],
     required: [true, 'Field type is required'],
     default: 'text'
@@ -50,14 +35,31 @@ const fieldSchema = new mongoose.Schema({
   options: [{
     label: { type: String, required: true },
     value: { type: String, required: true }
-  }], // For select, radio, checkbox fields
+  }],
   validation: {
     minLength: { type: Number, min: 0 },
     maxLength: { type: Number, min: 0 },
     min: { type: Number },
     max: { type: Number },
-    pattern: { type: String }, // Regex pattern
-    customMessage: { type: String } // Custom validation message
+    pattern: { type: String },
+    customMessage: { type: String },
+    allowedFileTypes: [{ // New: for file fields
+      type: String,
+      enum: ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
+      default: ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
+    }],
+    maxFileSize: { // New: max file size in bytes
+      type: Number,
+      min: 0,
+      max: 10 * 1024 * 1024, // 10MB max
+      default: 5 * 1024 * 1024 // 5MB default
+    },
+    maxFiles: { // New: max number of files for multi-file uploads
+      type: Number,
+      min: 1,
+      max: 5,
+      default: 1
+    }
   },
   defaultValue: mongoose.Schema.Types.Mixed,
   helpText: {
@@ -65,9 +67,9 @@ const fieldSchema = new mongoose.Schema({
     maxlength: [300, 'Help text cannot exceed 300 characters']
   },
   conditional: {
-    dependsOn: { type: String }, // Field name this depends on
-    showWhen: mongoose.Schema.Types.Mixed, // Value that shows this field
-    hideWhen: mongoose.Schema.Types.Mixed  // Value that hides this field
+    dependsOn: { type: String },
+    showWhen: mongoose.Schema.Types.Mixed,
+    hideWhen: mongoose.Schema.Types.Mixed
   }
 }, { _id: true });
 
@@ -112,7 +114,7 @@ const dutySchema = new mongoose.Schema({
     submissionLimit: {
       type: Number,
       min: 1,
-      default: null // null means unlimited
+      default: null
     }
   },
   priority: {
@@ -121,7 +123,7 @@ const dutySchema = new mongoose.Schema({
     default: 'medium'
   },
   estimatedTime: {
-    type: Number, // in minutes
+    type: Number,
     min: 1
   },
   isActive: {
@@ -149,26 +151,21 @@ const dutySchema = new mongoose.Schema({
     default: Date.now
   }
 }, {
-  timestamps: true, // Automatically manages createdAt and updatedAt
+  timestamps: true,
   toJSON: { virtuals: true },
   toObject: { virtuals: true }
 });
 
-// Compound index to ensure unique title per department
+// Indexes
 dutySchema.index({ title: 1, department: 1 }, { unique: true });
-
-// Index for active duties
 dutySchema.index({ isActive: 1, department: 1 });
-
-// Index for priority and department
 dutySchema.index({ priority: 1, department: 1 });
 
-// Virtual for form field count
-dutySchema.virtual('fieldCount').get(function() {
+// Virtuals
+dutySchema.virtual('fieldCount').get(function () {
   return this.formSchema.fields ? this.formSchema.fields.length : 0;
 });
 
-// Virtual to populate department name
 dutySchema.virtual('departmentName', {
   ref: 'Department',
   localField: 'department',
@@ -176,78 +173,81 @@ dutySchema.virtual('departmentName', {
   justOne: true
 });
 
-// Pre-save middleware to validate form schema
-dutySchema.pre('save', function(next) {
-  // Validate that select/radio/checkbox fields have options
+// Pre-save validation
+dutySchema.pre('save', function (next) {
   if (this.formSchema && this.formSchema.fields) {
+    const fieldNames = this.formSchema.fields.map(f => f.name);
+    const uniqueNames = [...new Set(fieldNames)];
+    if (fieldNames.length !== uniqueNames.length) {
+      return next(new Error('Field names must be unique within a form'));
+    }
+
     for (let field of this.formSchema.fields) {
       if (['select', 'radio', 'checkbox'].includes(field.type)) {
         if (!field.options || field.options.length === 0) {
           return next(new Error(`Field "${field.name}" of type "${field.type}" must have options`));
         }
       }
-      
-      // Validate field names are unique within the form
-      const fieldNames = this.formSchema.fields.map(f => f.name);
-      const uniqueNames = [...new Set(fieldNames)];
-      if (fieldNames.length !== uniqueNames.length) {
-        return next(new Error('Field names must be unique within a form'));
+      if (field.type === 'file') {
+        if (!field.validation?.allowedFileTypes || field.validation.allowedFileTypes.length === 0) {
+          return next(new Error(`File field "${field.name}" must specify allowed file types`));
+        }
+        if (!field.validation?.maxFileSize || field.validation.maxFileSize <= 0) {
+          return next(new Error(`File field "${field.name}" must specify a valid max file size`));
+        }
       }
     }
   }
-  
   next();
 });
 
-// Static method to get duties by department
-dutySchema.statics.getByDepartment = function(departmentId, activeOnly = true) {
-  const filter = { department: departmentId };
-  if (activeOnly) filter.isActive = true;
-  
-  return this.find(filter)
-    .populate('department', 'name')
-    .populate('createdBy', 'name email')
-    .sort({ priority: -1, createdAt: -1 });
-};
-
-// Static method to get duty with full form schema
-dutySchema.statics.getWithFormSchema = function(dutyId) {
-  return this.findById(dutyId)
-    .populate('department', 'name')
-    .populate('createdBy', 'name email');
-};
-
-// Instance method to validate submitted form data
-dutySchema.methods.validateSubmission = function(submissionData) {
+// Validate form submission
+dutySchema.methods.validateSubmission = function (submissionData) {
   const errors = [];
-  
   if (!this.formSchema || !this.formSchema.fields) {
     return { isValid: true, errors: [] };
   }
-  
+
   for (let field of this.formSchema.fields) {
     const value = submissionData[field.name];
-    
-    // Check required fields
-    if (field.required && (!value || value === '')) {
+
+    if (field.required && (!value || value === '' || (field.type === 'file' && !value?.length))) {
       errors.push(`${field.label} is required`);
       continue;
     }
-    
-    // Skip validation if field is not required and empty
-    if (!field.required && (!value || value === '')) {
+
+    if (!field.required && (!value || value === '' || (field.type === 'file' && !value?.length))) {
       continue;
     }
-    
-    // Type-specific validation
+
     switch (field.type) {
+      case 'file':
+        if (Array.isArray(value)) {
+          if (field.validation?.maxFiles && value.length > field.validation.maxFiles) {
+            errors.push(`${field.label} exceeds maximum file count (${field.validation.maxFiles})`);
+          }
+          for (const file of value) {
+            if (!file.filename || !file.path || !file.mimetype || !file.size) {
+              errors.push(`${field.label} must include valid file metadata (filename, path, mimetype, size)`);
+              continue;
+            }
+            if (field.validation?.allowedFileTypes && !field.validation.allowedFileTypes.includes(file.mimetype)) {
+              errors.push(`${field.label} includes invalid file type: ${file.mimetype}`);
+            }
+            if (field.validation?.maxFileSize && file.size > field.validation.maxFileSize) {
+              errors.push(`${field.label} file size exceeds ${field.validation.maxFileSize / 1024 / 1024}MB`);
+            }
+          }
+        } else {
+          errors.push(`${field.label} must be an array of file metadata`);
+        }
+        break;
       case 'email':
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(value)) {
           errors.push(`${field.label} must be a valid email address`);
         }
         break;
-        
       case 'url':
         try {
           new URL(value);
@@ -255,7 +255,6 @@ dutySchema.methods.validateSubmission = function(submissionData) {
           errors.push(`${field.label} must be a valid URL`);
         }
         break;
-        
       case 'number':
         if (isNaN(value)) {
           errors.push(`${field.label} must be a number`);
@@ -269,7 +268,6 @@ dutySchema.methods.validateSubmission = function(submissionData) {
           }
         }
         break;
-        
       case 'text':
       case 'textarea':
         if (field.validation?.minLength && value.length < field.validation.minLength) {
@@ -285,7 +283,6 @@ dutySchema.methods.validateSubmission = function(submissionData) {
           }
         }
         break;
-        
       case 'select':
       case 'radio':
         const validOptions = field.options.map(opt => opt.value);
@@ -293,7 +290,6 @@ dutySchema.methods.validateSubmission = function(submissionData) {
           errors.push(`${field.label} must be one of: ${validOptions.join(', ')}`);
         }
         break;
-        
       case 'checkbox':
         if (!Array.isArray(value)) {
           errors.push(`${field.label} must be an array`);
@@ -307,13 +303,28 @@ dutySchema.methods.validateSubmission = function(submissionData) {
         break;
     }
   }
-  
+
   return {
     isValid: errors.length === 0,
     errors
   };
 };
 
-const Duty = mongoose.model('Duty', dutySchema);
+// Static methods
+dutySchema.statics.getByDepartment = function (departmentId, activeOnly = true) {
+  const filter = { department: departmentId };
+  if (activeOnly) filter.isActive = true;
+  return this.find(filter)
+    .populate('department', 'name')
+    .populate('createdBy', 'name email')
+    .sort({ priority: -1, createdAt: -1 });
+};
 
+dutySchema.statics.getWithFormSchema = function (dutyId) {
+  return this.findById(dutyId)
+    .populate('department', 'name')
+    .populate('createdBy', 'name email');
+};
+
+const Duty = mongoose.model('Duty', dutySchema);
 module.exports = Duty;

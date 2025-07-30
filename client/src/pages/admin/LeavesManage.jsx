@@ -4,9 +4,9 @@ import {
   Calendar, Clock, User, Check, X, 
   ChevronLeft, ChevronRight, Loader2, Filter,
   AlertCircle, Clock as PendingIcon, Search,
-  ChevronDown, ChevronUp
+  ChevronDown, ChevronUp, MessageSquare
 } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, differenceInDays } from 'date-fns';
 
 const LeavesManage = () => {
   const { 
@@ -30,6 +30,14 @@ const LeavesManage = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // State for rejection modal
+  const [rejectionModal, setRejectionModal] = useState({
+    isOpen: false,
+    leaveId: null,
+    employeeName: '',
+    rejectionReason: ''
+  });
+
   // Fetch data on mount
   useEffect(() => {
     fetchEmployees();
@@ -44,6 +52,20 @@ const LeavesManage = () => {
     } catch (error) {
       console.error('Error formatting date:', error);
       return 'Invalid Date';
+    }
+  };
+
+  // Helper function to calculate proper leave days
+  const calculateLeaveDays = (fromDate, toDate) => {
+    if (!fromDate || !toDate) return 0;
+    try {
+      const from = parseISO(fromDate);
+      const to = parseISO(toDate);
+      // Add 1 to include both start and end dates
+      return differenceInDays(to, from) + 1;
+    } catch (error) {
+      console.error('Error calculating days:', error);
+      return 0;
     }
   };
 
@@ -80,20 +102,70 @@ const LeavesManage = () => {
     }
   });
 
+  // Get pending leaves count
+  const pendingLeavesCount = (allLeaves || []).filter(leave => leave.status === 'pending').length;
+
   // Pagination logic
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentLeaves = filteredLeaves.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredLeaves.length / itemsPerPage);
 
-  // Handle leave approval/rejection
-  const handleLeaveAction = async (leaveId, action) => {
+  // Handle leave approval
+  const handleApproval = async (leaveId) => {
     try {
-      await processLeave(leaveId, { status: action });
-      fetchAllLeaves(); // Refresh data
+      await processLeave(leaveId, { status: 'approved' });
+      await fetchAllLeaves(); // Refresh data
     } catch (err) {
-      console.error('Failed to process leave:', err);
+      console.error('Failed to approve leave:', err);
     }
+  };
+
+  // Handle rejection - open modal
+  const handleRejectionClick = (leave) => {
+    setRejectionModal({
+      isOpen: true,
+      leaveId: leave._id,
+      employeeName: leave.employee?.name || 'Unknown Employee',
+      rejectionReason: ''
+    });
+  };
+
+  // Handle rejection submission
+  const handleRejectionSubmit = async () => {
+    if (!rejectionModal.rejectionReason.trim()) {
+      alert('Please provide a reason for rejection');
+      return;
+    }
+
+    try {
+      await processLeave(rejectionModal.leaveId, { 
+        status: 'rejected',
+        rejectionReason: rejectionModal.rejectionReason.trim()
+      });
+      
+      // Close modal and reset
+      setRejectionModal({
+        isOpen: false,
+        leaveId: null,
+        employeeName: '',
+        rejectionReason: ''
+      });
+      
+      await fetchAllLeaves(); // Refresh data
+    } catch (err) {
+      console.error('Failed to reject leave:', err);
+    }
+  };
+
+  // Close rejection modal
+  const closeRejectionModal = () => {
+    setRejectionModal({
+      isOpen: false,
+      leaveId: null,
+      employeeName: '',
+      rejectionReason: ''
+    });
   };
 
   // Generate month options for filter
@@ -136,20 +208,30 @@ const LeavesManage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-4 md:p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
+        {/* Header with Pending Count */}
         <div className="mb-6">
           <div className="bg-white rounded-2xl shadow-lg p-6 border border-slate-200/60 backdrop-blur-sm">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-xl shadow-lg">
-                <Calendar size={24} className="text-white" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-xl shadow-lg">
+                  <Calendar size={24} className="text-white" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
+                    Leave Management
+                  </h1>
+                  <p className="text-slate-600 mt-1">
+                    Manage and process employee leave requests
+                  </p>
+                </div>
               </div>
-              <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
-                  Leave Management
-                </h1>
-                <p className="text-slate-600 mt-1">
-                  Manage and process employee leave requests
-                </p>
+              
+              {/* Pending Requests Counter */}
+              <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2">
+                <PendingIcon size={18} className="text-amber-600" />
+                <span className="text-sm font-semibold text-amber-800">
+                  {pendingLeavesCount} Pending
+                </span>
               </div>
             </div>
           </div>
@@ -304,182 +386,177 @@ const LeavesManage = () => {
                   <div className="col-span-1">Duration</div>
                   <div className="col-span-3">Reason</div>
                   <div className="col-span-1">Status</div>
-                  <div className="col-span-2">Actions</div>
                 </div>
                 
                 {/* Table Rows */}
-                {currentLeaves.map((leave) => (
-                  <div 
-                    key={leave._id} 
-                    className={`grid grid-cols-12 gap-4 p-6 border-b border-slate-100 hover:bg-slate-50 transition-colors ${
-                      leave.status === 'pending' ? 'bg-slate-50/50' : 'bg-white'
-                    }`}
-                  >
-                    {/* Employee */}
-                    <div className="col-span-3 flex items-center gap-3">
-                      <div className="h-10 w-10 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center shadow-md">
-                        <User size={16} className="text-white" />
-                      </div>
-                      <div>
-                        <div className="font-semibold text-slate-800 line-clamp-1">
-                          {leave.employee?.name || 'Unknown Employee'}
+                {currentLeaves.map((leave) => {
+                  const calculatedDays = calculateLeaveDays(leave.fromDate, leave.toDate);
+                  
+                  return (
+                    <div 
+                      key={leave._id} 
+                      className={`grid grid-cols-12 gap-4 p-6 border-b border-slate-100 hover:bg-slate-50 transition-colors ${
+                        leave.status === 'pending' ? 'bg-slate-50/50' : 'bg-white'
+                      }`}
+                    >
+                      {/* Employee - Allow name to wrap */}
+                      <div className="col-span-3 flex items-center gap-3">
+                        <div className="h-10 w-10 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center shadow-md flex-shrink-0">
+                          <User size={16} className="text-white" />
                         </div>
-                        <div className="text-sm text-slate-500">
-                          {leave.employee?.employeeId || 'N/A'}
+                        <div className="min-w-0 flex-1">
+                          <div className="font-semibold text-slate-800 break-words">
+                            {leave.employee?.name || 'Unknown Employee'}
+                          </div>
+                          <div className="text-xs text-slate-500">
+                            ID: {leave.employee?.employeeId || 'N/A'}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    
-                    {/* Leave Period */}
-                    <div className="col-span-2 flex flex-col justify-center space-y-1">
-                      <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
-                        <Calendar size={14} className="text-slate-400" />
-                        {safeFormatDate(leave.fromDate, 'MMM dd, yyyy')}
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-slate-600">
-                        <Clock size={14} className="text-slate-400" />
-                        {safeFormatDate(leave.toDate, 'MMM dd, yyyy')}
-                      </div>
-                    </div>
-                    
-                    {/* Duration */}
-                    <div className="col-span-1 flex items-center">
-                      <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm font-medium">
-                        {leave.totalDays || 0} day{(leave.totalDays || 0) !== 1 ? 's' : ''}
-                      </span>
-                    </div>
-                    
-                    {/* Reason */}
-                    <div className="col-span-3 text-sm text-slate-600">
-                      <div className="line-clamp-2 bg-slate-50 p-2 rounded-lg">
-                        {leave.reason || 'No reason provided'}
-                      </div>
-                    </div>
-                    
-                    {/* Status */}
-                    <div className="col-span-1 flex items-center">
-                      <StatusBadge status={leave.status} />
-                    </div>
-                    
-                    {/* Actions */}
-                    <div className="col-span-2 flex items-center gap-2">
-                      {leave.status === 'pending' ? (
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleLeaveAction(leave._id, 'approved')}
-                            className="p-2 text-white bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg"
-                            title="Approve"
-                          >
-                            <Check size={16} />
-                          </button>
-                          <button
-                            onClick={() => handleLeaveAction(leave._id, 'rejected')}
-                            className="p-2 text-white bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg"
-                            title="Reject"
-                          >
-                            <X size={16} />
-                          </button>
+                      
+                      {/* Leave Period */}
+                      <div className="col-span-2 flex flex-col justify-center space-y-1">
+                        <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                          <Calendar size={14} className="text-slate-400" />
+                          {safeFormatDate(leave.fromDate, 'MMM dd, yyyy')}
                         </div>
-                      ) : (
-                        <div className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded-lg">
-                          Updated: {safeFormatDate(leave.updatedAt, 'MMM dd')}
+                        <div className="flex items-center gap-2 text-sm text-slate-600">
+                          <Clock size={14} className="text-slate-400" />
+                          {safeFormatDate(leave.toDate, 'MMM dd, yyyy')}
                         </div>
-                      )}
+                      </div>
+                      
+                      {/* Duration - Use calculated days */}
+                      <div className="col-span-1 flex items-center">
+                        <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm font-medium">
+                          {calculatedDays} day{calculatedDays !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      
+                      {/* Reason */}
+                      <div className="col-span-3 text-sm text-slate-600">
+                        <div className="line-clamp-2 bg-slate-50 p-2 rounded-lg break-words">
+                          {leave.reason || 'No reason provided'}
+                        </div>
+                        {leave.status === 'rejected' && leave.rejectionReason && (
+                          <div className="mt-2 p-2 bg-rose-50 border border-rose-200 rounded-lg">
+                            <div className="text-xs text-rose-600 font-medium mb-1">Rejection Reason:</div>
+                            <div className="text-xs text-rose-700 break-words">{leave.rejectionReason}</div>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Status */}
+                      <div className="col-span-1 flex items-center">
+                        <StatusBadge status={leave.status} />
+                      </div>
+                      
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Mobile Cards */}
               <div className="md:hidden space-y-4 p-4">
-                {currentLeaves.map((leave) => (
-                  <div 
-                    key={leave._id} 
-                    className={`p-5 rounded-xl border border-slate-200/60 shadow-sm hover:shadow-md transition-all ${
-                      leave.status === 'pending' ? 'bg-slate-50/50' : 'bg-white'
-                    }`}
-                  >
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center shadow-md">
-                          <User size={16} className="text-white" />
-                        </div>
-                        <div>
-                          <div className="font-semibold text-slate-800">
-                            {leave.employee?.name || 'Unknown Employee'}
+                {currentLeaves.map((leave) => {
+                  const calculatedDays = calculateLeaveDays(leave.fromDate, leave.toDate);
+                  
+                  return (
+                    <div 
+                      key={leave._id} 
+                      className={`p-5 rounded-xl border border-slate-200/60 shadow-sm hover:shadow-md transition-all ${
+                        leave.status === 'pending' ? 'bg-slate-50/50' : 'bg-white'
+                      }`}
+                    >
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className="h-10 w-10 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center shadow-md flex-shrink-0">
+                            <User size={16} className="text-white" />
                           </div>
-                          <div className="text-xs text-slate-500">
-                            {leave.employee?.employeeId || 'N/A'}
+                          <div className="min-w-0 flex-1">
+                            <div className="font-semibold text-slate-800 break-words">
+                              {leave.employee?.name || 'Unknown Employee'}
+                            </div>
+                            <div className="text-xs text-slate-500">
+                              ID: {leave.employee?.employeeId || 'N/A'}
+                            </div>
+                          </div>
+                        </div>
+                        <StatusBadge status={leave.status} />
+                      </div>
+
+                      <div className="space-y-3 mt-4">
+                        <div className="flex items-center gap-3 text-sm">
+                          <Calendar size={14} className="text-slate-400 flex-shrink-0" />
+                          <div>
+                            <span className="text-slate-500">From: </span>
+                            <span className="font-medium text-slate-700">
+                              {safeFormatDate(leave.fromDate, 'MMM dd, yyyy')}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 text-sm">
+                          <Clock size={14} className="text-slate-400 flex-shrink-0" />
+                          <div>
+                            <span className="text-slate-500">To: </span>
+                            <span className="font-medium text-slate-700">
+                              {safeFormatDate(leave.toDate, 'MMM dd, yyyy')}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 text-sm">
+                          <div className="w-5 h-5 flex items-center justify-center">
+                            <span className="text-slate-400">•</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-500">Duration: </span>
+                            <span className="font-medium text-blue-600">
+                              {calculatedDays} day{calculatedDays !== 1 ? 's' : ''}
+                            </span>
                           </div>
                         </div>
                       </div>
-                      <StatusBadge status={leave.status} />
-                    </div>
 
-                    <div className="space-y-3 mt-4">
-                      <div className="flex items-center gap-3 text-sm">
-                        <Calendar size={14} className="text-slate-400 flex-shrink-0" />
-                        <div>
-                          <span className="text-slate-500">From: </span>
-                          <span className="font-medium text-slate-700">
-                            {safeFormatDate(leave.fromDate, 'MMM dd, yyyy')}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3 text-sm">
-                        <Clock size={14} className="text-slate-400 flex-shrink-0" />
-                        <div>
-                          <span className="text-slate-500">To: </span>
-                          <span className="font-medium text-slate-700">
-                            {safeFormatDate(leave.toDate, 'MMM dd, yyyy')}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3 text-sm">
-                        <div className="w-5 h-5 flex items-center justify-center">
-                          <span className="text-slate-400">•</span>
-                        </div>
-                        <div>
-                          <span className="text-slate-500">Duration: </span>
-                          <span className="font-medium text-blue-600">
-                            {leave.totalDays || 0} day{(leave.totalDays || 0) !== 1 ? 's' : ''}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 pt-3 border-t border-slate-100">
-                      <div className="text-sm text-slate-600 mb-2">
-                        <span className="font-medium">Reason:</span> {leave.reason || 'No reason provided'}
-                      </div>
-                      
-                      <div className="flex justify-between items-center mt-3">
-                        <div className="text-xs text-slate-500">
-                          Updated: {safeFormatDate(leave.updatedAt, 'MMM dd, yyyy')}
+                      <div className="mt-4 pt-3 border-t border-slate-100">
+                        <div className="text-sm text-slate-600 mb-2 break-words">
+                          <span className="font-medium">Reason:</span> {leave.reason || 'No reason provided'}
                         </div>
                         
-                        {leave.status === 'pending' && (
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => handleLeaveAction(leave._id, 'approved')}
-                              className="p-2 text-white bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg"
-                              title="Approve"
-                            >
-                              <Check size={16} />
-                            </button>
-                            <button
-                              onClick={() => handleLeaveAction(leave._id, 'rejected')}
-                              className="p-2 text-white bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg"
-                              title="Reject"
-                            >
-                              <X size={16} />
-                            </button>
+                        {leave.status === 'rejected' && leave.rejectionReason && (
+                          <div className="mt-2 p-2 bg-rose-50 border border-rose-200 rounded-lg">
+                            <div className="text-xs text-rose-600 font-medium mb-1">Rejection Reason:</div>
+                            <div className="text-xs text-rose-700 break-words">{leave.rejectionReason}</div>
                           </div>
                         )}
+                        
+                        <div className="flex justify-between items-center mt-3">
+                          <div className="text-xs text-slate-500">
+                            Updated: {safeFormatDate(leave.updatedAt, 'MMM dd, yyyy')}
+                          </div>
+                          
+                          {leave.status === 'pending' && (
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleApproval(leave._id)}
+                                className="p-2 text-white bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg"
+                                title="Approve"
+                              >
+                                <Check size={16} />
+                              </button>
+                              <button
+                                onClick={() => handleRejectionClick(leave)}
+                                className="p-2 text-white bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg"
+                                title="Reject"
+                              >
+                                <X size={16} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </>
           )}
@@ -514,6 +591,62 @@ const LeavesManage = () => {
             </div>
           )}
         </div>
+
+        {/* Rejection Modal */}
+        {rejectionModal.isOpen && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full border border-slate-200">
+              <div className="p-6 border-b border-slate-200">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-rose-100 rounded-lg">
+                    <MessageSquare size={20} className="text-rose-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-800">Reject Leave Request</h3>
+                    <p className="text-sm text-slate-600 break-words">
+                      {rejectionModal.employeeName}'s leave request
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="p-6">
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Reason for rejection <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  value={rejectionModal.rejectionReason}
+                  onChange={(e) => setRejectionModal(prev => ({
+                    ...prev,
+                    rejectionReason: e.target.value
+                  }))}
+                  placeholder="Please provide a clear reason for rejecting this leave request..."
+                  className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-rose-500 focus:border-rose-500 resize-none h-24"
+                  maxLength={500}
+                />
+                <div className="text-xs text-slate-500 mt-1">
+                  {rejectionModal.rejectionReason.length}/500 characters
+                </div>
+              </div>
+              
+              <div className="flex justify-end gap-3 p-6 border-t border-slate-200">
+                <button
+                  onClick={closeRejectionModal}
+                  className="px-4 py-2 text-slate-600 hover:text-slate-800 font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleRejectionSubmit}
+                  disabled={!rejectionModal.rejectionReason.trim()}
+                  className="px-6 py-2 bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white rounded-xl font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
+                >
+                  Reject Leave
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

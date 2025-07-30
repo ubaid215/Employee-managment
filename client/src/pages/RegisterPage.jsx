@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Eye, EyeOff, Mail, Lock, User, Phone, CreditCard, AlertCircle, Loader2 } from 'lucide-react';
 
@@ -10,24 +9,12 @@ const RegisterPage = () => {
     password: '',
     passwordConfirm: '',
     phone: '',
-    employeeId: '',
-    department: ''
+    cnic: ''
   });
   const [showPassword, setShowPassword] = useState(false);
   const [validationErrors, setValidationErrors] = useState({});
   
-  const { register, loading, error } = useAuth();
-  const navigate = useNavigate();
-
-  const departments = [
-    'Human Resources',
-    'Engineering',
-    'Marketing',
-    'Sales',
-    'Operations',
-    'Finance',
-    'Customer Support'
-  ];
+  const { register, isAuthenticating, error } = useAuth();
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -80,13 +67,11 @@ const RegisterPage = () => {
       isValid = false;
     }
 
-    if (!formData.employeeId) {
-      errors.employeeId = 'Employee ID is required';
+    if (!formData.cnic) {
+      errors.cnic = 'CNIC is required';
       isValid = false;
-    }
-
-    if (!formData.department) {
-      errors.department = 'Department is required';
+    } else if (!/^\d{5}-\d{7}-\d{1}$/.test(formData.cnic)) {
+      errors.cnic = 'CNIC format should be 12345-1234567-1';
       isValid = false;
     }
 
@@ -101,12 +86,8 @@ const RegisterPage = () => {
 
     try {
       await register(formData);
-      navigate('/account-pending', { 
-        state: { 
-          email: formData.email,
-          message: 'Your registration is pending admin approval' 
-        }
-      });
+      // Show success message for pending approval
+      alert('Registration successful! Your account is pending admin approval. You will be notified once approved.');
     } catch (err) {
       // Error is already handled by the auth context
       console.error('Registration error:', err);
@@ -131,7 +112,7 @@ const RegisterPage = () => {
             </div>
           )}
 
-          <form className="space-y-4" onSubmit={handleSubmit}>
+          <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Full Name
@@ -154,54 +135,6 @@ const RegisterPage = () => {
               {validationErrors.name && (
                 <p className="mt-1 text-sm text-red-600">{validationErrors.name}</p>
               )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Employee ID
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <CreditCard className="h-5 w-5 text-gray-400" />
-                  </div>
-                  <input
-                    type="text"
-                    name="employeeId"
-                    value={formData.employeeId}
-                    onChange={handleInputChange}
-                    className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                      validationErrors.employeeId ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                    placeholder="EMP-123"
-                  />
-                </div>
-                {validationErrors.employeeId && (
-                  <p className="mt-1 text-sm text-red-600">{validationErrors.employeeId}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Department
-                </label>
-                <select
-                  name="department"
-                  value={formData.department}
-                  onChange={handleInputChange}
-                  className={`w-full pl-3 pr-10 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    validationErrors.department ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                >
-                  <option value="">Select department</option>
-                  {departments.map(dept => (
-                    <option key={dept} value={dept}>{dept}</option>
-                  ))}
-                </select>
-                {validationErrors.department && (
-                  <p className="mt-1 text-sm text-red-600">{validationErrors.department}</p>
-                )}
-              </div>
             </div>
 
             <div>
@@ -244,11 +177,35 @@ const RegisterPage = () => {
                   className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                     validationErrors.phone ? 'border-red-500' : 'border-gray-300'
                   }`}
-                  placeholder="+1 (555) 123-4567"
+                  placeholder="+92 300 1234567"
                 />
               </div>
               {validationErrors.phone && (
                 <p className="mt-1 text-sm text-red-600">{validationErrors.phone}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                CNIC
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <CreditCard className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  name="cnic"
+                  value={formData.cnic}
+                  onChange={handleInputChange}
+                  className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    validationErrors.cnic ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                  placeholder="12345-1234567-1"
+                />
+              </div>
+              {validationErrors.cnic && (
+                <p className="mt-1 text-sm text-red-600">{validationErrors.cnic}</p>
               )}
             </div>
 
@@ -312,27 +269,25 @@ const RegisterPage = () => {
             </div>
 
             <button
-              type="submit"
-              disabled={loading}
+              type="button"
+              onClick={handleSubmit}
+              disabled={isAuthenticating}
               className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-70 disabled:cursor-not-allowed"
             >
-              {loading ? (
+              {isAuthenticating ? (
                 <span className="flex items-center justify-center">
                   <Loader2 className="animate-spin mr-2 h-4 w-4" />
                   Registering...
                 </span>
               ) : 'Register'}
             </button>
-          </form>
+          </div>
 
           <div className="mt-6 text-center text-sm text-gray-600">
             Already have an account?{' '}
-            <Link 
-              to="/login" 
-              className="font-medium text-blue-600 hover:text-blue-500"
-            >
+            <button className="font-medium text-blue-600 hover:text-blue-500">
               Sign in
-            </Link>
+            </button>
           </div>
         </div>
       </div>

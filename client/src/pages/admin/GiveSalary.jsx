@@ -1,8 +1,10 @@
+/* eslint-disable no-unused-vars */
 import React, { useState, useEffect } from 'react';
 import { useAdmin } from '../../context/AdminContext';
 import { 
   DollarSign, Calendar, User, FileText, 
-  Plus, ChevronLeft, ChevronRight, Loader2 
+  Plus, ChevronLeft, ChevronRight, Loader2,
+  Edit2, X, Save
 } from 'lucide-react';
 
 const GiveSalary = () => {
@@ -11,6 +13,7 @@ const GiveSalary = () => {
     fetchEmployees, 
     fetchSalaries, 
     addSalary, 
+    updateSalary,
     salaries = [], 
     loading 
   } = useAdmin();
@@ -25,6 +28,13 @@ const GiveSalary = () => {
     advanceAmount: '',
     fullPayment: '',
     status: 'paid'
+  });
+
+  // Edit modal state
+  const [editModal, setEditModal] = useState({
+    isOpen: false,
+    salary: null,
+    formData: {}
   });
 
   // Table state
@@ -45,6 +55,46 @@ const GiveSalary = () => {
       ...prev,
       [name]: value
     }));
+  };
+
+  // Handle edit form input changes
+  const handleEditChange = (e) => {
+    const { name, value } = e.target;
+    setEditModal(prev => ({
+      ...prev,
+      formData: {
+        ...prev.formData,
+        [name]: value
+      }
+    }));
+  };
+
+  // Open edit modal
+  const openEditModal = (salary) => {
+    const employee = employees.find(e => e._id === salary.employee);
+    setEditModal({
+      isOpen: true,
+      salary,
+      formData: {
+        employee: salary.employee,
+        type: salary.type,
+        amount: salary.amount,
+        fullPayment: salary.type === 'full' ? salary.amount : '',
+        advanceAmount: salary.type === 'advance' ? salary.amount : '',
+        month: salary.month ? salary.month.split(' ')[0] : '', // Extract month from "Month Year"
+        note: salary.note || '',
+        status: salary.status
+      }
+    });
+  };
+
+  // Close edit modal
+  const closeEditModal = () => {
+    setEditModal({
+      isOpen: false,
+      salary: null,
+      formData: {}
+    });
   };
 
   // Handle form submission
@@ -68,6 +118,25 @@ const GiveSalary = () => {
       });
     } catch (err) {
       console.error('Failed to add salary:', err);
+    }
+  };
+
+  // Handle edit form submission
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const updates = {
+        ...editModal.formData,
+        amount: editModal.formData.type === 'full' 
+          ? editModal.formData.fullPayment 
+          : editModal.formData.advanceAmount,
+        month: `${editModal.formData.month} ${new Date().getFullYear()}`
+      };
+      
+      await updateSalary(editModal.salary._id, updates);
+      closeEditModal();
+    } catch (err) {
+      console.error('Failed to update salary:', err);
     }
   };
 
@@ -154,7 +223,7 @@ const GiveSalary = () => {
                   Full Amount <span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
-                  <span className="absolute left-4 top-3.5 text-slate-500 font-medium">$</span>
+                  <span className="absolute left-4 top-3.5 text-slate-500 font-medium">PKR </span>
                   <input
                     type="number"
                     name="fullPayment"
@@ -173,7 +242,7 @@ const GiveSalary = () => {
                   Advance Amount <span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
-                  <span className="absolute left-4 top-3.5 text-slate-500 font-medium">$</span>
+                  <span className="absolute left-4 top-3.5 text-slate-500 font-medium">PKR </span>
                   <input
                     type="number"
                     name="advanceAmount"
@@ -300,6 +369,7 @@ const GiveSalary = () => {
                   <th className="px-6 py-4 text-left text-xs font-bold text-slate-600 uppercase tracking-wider">Month</th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-slate-600 uppercase tracking-wider">Status</th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-slate-600 uppercase tracking-wider">Paid On</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-slate-600 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-slate-100">
@@ -331,7 +401,7 @@ const GiveSalary = () => {
                         </span>
                       </td>
                       <td className="px-6 py-5 whitespace-nowrap text-sm font-bold text-slate-900">
-                        ${salary.amount?.toLocaleString() || '0'}
+                        PKR {salary.amount?.toLocaleString() || '0'}
                       </td>
                       <td className="px-6 py-5 whitespace-nowrap text-sm text-slate-600 font-medium">
                         {salary.month}
@@ -348,11 +418,20 @@ const GiveSalary = () => {
                       <td className="px-6 py-5 whitespace-nowrap text-sm text-slate-600">
                         {salary.paidOn ? new Date(salary.paidOn).toLocaleDateString() : 'N/A'}
                       </td>
+                      <td className="px-6 py-5 whitespace-nowrap">
+                        <button
+                          onClick={() => openEditModal(salary)}
+                          className="inline-flex items-center p-2 text-indigo-600 hover:text-indigo-900 hover:bg-indigo-50 rounded-lg transition-colors duration-150"
+                          title="Edit Salary"
+                        >
+                          <Edit2 size={16} />
+                        </button>
+                      </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="6" className="px-6 py-12 text-center">
+                    <td colSpan="7" className="px-6 py-12 text-center">
                       <div className="flex flex-col items-center justify-center text-slate-500">
                         <FileText size={48} className="mb-4 opacity-50" />
                         <p className="text-lg font-medium">No salary records found</p>
@@ -396,6 +475,193 @@ const GiveSalary = () => {
             </div>
           )}
         </div>
+
+        {/* Edit Modal */}
+        {editModal.isOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6 border-b border-slate-200">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-semibold text-slate-800 flex items-center gap-3">
+                    <div className="p-2 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-lg">
+                      <Edit2 size={20} className="text-white" />
+                    </div>
+                    Edit Salary Record
+                  </h3>
+                  <button
+                    onClick={closeEditModal}
+                    className="p-2 hover:bg-slate-100 rounded-lg transition-colors duration-150"
+                  >
+                    <X size={20} className="text-slate-500" />
+                  </button>
+                </div>
+              </div>
+              
+              <form onSubmit={handleEditSubmit} className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Employee Selection */}
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                      Employee <span className="text-rose-500">*</span>
+                    </label>
+                    <select
+                      name="employee"
+                      value={editModal.formData.employee}
+                      onChange={handleEditChange}
+                      className="w-full border border-slate-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white hover:border-slate-400"
+                      required
+                    >
+                      <option value="">Select Employee</option>
+                      {employees.map(emp => (
+                        <option key={emp._id} value={emp._id}>
+                          {emp.name} ({emp.employeeId})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Salary Type */}
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                      Salary Type <span className="text-rose-500">*</span>
+                    </label>
+                    <select
+                      name="type"
+                      value={editModal.formData.type}
+                      onChange={handleEditChange}
+                      className="w-full border border-slate-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white hover:border-slate-400"
+                      required
+                    >
+                      <option value="full">Full Payment</option>
+                      <option value="advance">Advance Payment</option>
+                    </select>
+                  </div>
+
+                  {/* Amount Fields (Conditional based on type) */}
+                  {editModal.formData.type === 'full' ? (
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">
+                        Full Amount <span className="text-rose-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-4 top-3.5 text-slate-500 font-medium">PKR </span>
+                        <input
+                          type="number"
+                          name="fullPayment"
+                          value={editModal.formData.fullPayment}
+                          onChange={handleEditChange}
+                          className="w-full border border-slate-300 rounded-xl pl-10 pr-4 py-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 hover:border-slate-400"
+                          placeholder="0.00"
+                          required
+                          min="0"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">
+                        Advance Amount <span className="text-rose-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-4 top-3.5 text-slate-500 font-medium">PKR </span>
+                        <input
+                          type="number"
+                          name="advanceAmount"
+                          value={editModal.formData.advanceAmount}
+                          onChange={handleEditChange}
+                          className="w-full border border-slate-300 rounded-xl pl-10 pr-4 py-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 hover:border-slate-400"
+                          placeholder="0.00"
+                          required
+                          min="0"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Month Selection */}
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                      Month <span className="text-rose-500">*</span>
+                    </label>
+                    <select
+                      name="month"
+                      value={editModal.formData.month}
+                      onChange={handleEditChange}
+                      className="w-full border border-slate-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white hover:border-slate-400"
+                      required
+                    >
+                      <option value="">Select Month</option>
+                      {months.map(month => (
+                        <option key={month} value={month}>{month}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Status */}
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                      Status
+                    </label>
+                    <select
+                      name="status"
+                      value={editModal.formData.status}
+                      onChange={handleEditChange}
+                      className="w-full border border-slate-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white hover:border-slate-400"
+                    >
+                      <option value="paid">Paid</option>
+                      <option value="pending">Pending</option>
+                      <option value="partial">Partial</option>
+                    </select>
+                  </div>
+
+                  {/* Note */}
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                      Notes
+                    </label>
+                    <textarea
+                      name="note"
+                      value={editModal.formData.note}
+                      onChange={handleEditChange}
+                      className="w-full border border-slate-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 hover:border-slate-400 resize-none"
+                      rows={3}
+                      placeholder="Any additional notes about this salary payment..."
+                      maxLength={200}
+                    />
+                  </div>
+                </div>
+
+                {/* Modal Actions */}
+                <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-slate-200">
+                  <button
+                    type="button"
+                    onClick={closeEditModal}
+                    className="px-6 py-3 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 font-medium transition-all duration-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 disabled:from-slate-400 disabled:to-slate-500 transition-all duration-200 flex items-center gap-2 font-medium shadow-lg hover:shadow-xl"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 size={18} className="animate-spin" />
+                        Updating...
+                      </>
+                    ) : (
+                      <>
+                        <Save size={18} />
+                        Update Salary
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

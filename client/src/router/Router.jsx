@@ -25,6 +25,7 @@ import Settings from "../pages/admin/Settings";
 import LoadingScreen from "../components/common/LoadingScreen";
 import { useAuth } from "../context/AuthContext";
 import DutyCreate from "../pages/admin/DutyCreate";
+import EmployeeTaskForm from "../pages/employee/EmployeeTaskForm";
 
 const Router = () => {
   const { loading } = useAuth();
@@ -59,6 +60,7 @@ const Router = () => {
         <Route path="leave" element={<Leave />} />
         <Route path="salary" element={<Salary />} />
         <Route path="duties" element={<Duty />} />
+        <Route path="task-submit" element={<EmployeeTaskForm />} />
       </Route>
 
       {/* Protected Admin Routes */}

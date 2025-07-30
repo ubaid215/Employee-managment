@@ -82,7 +82,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Update profile with image handling
-  const updateProfile = async (profileData, profileImage) => {
+  const updateProfileImage = async (profileData, profileImage) => {
   setIsAuthenticating(true);
   try {
     let updatedData = { ...profileData };
@@ -91,7 +91,7 @@ export const AuthProvider = ({ children }) => {
     // Handle image upload if provided
     if (profileImage) {
       try {
-        const uploadResponse = await employeeService.uploadProfileImage(profileImage);
+        const uploadResponse = await employeeService.updateProfileImage(profileImage);
         imageUrl = uploadResponse.data.imageUrl;
         updatedData.profile = {
           ...updatedData.profile,
@@ -189,7 +189,7 @@ export const AuthProvider = ({ children }) => {
     isAuthenticating,
     login,
     logout,
-    updateProfile,
+    updateProfileImage,
     updatePassword,
     updateEmail,
     resetPassword,
@@ -206,6 +206,7 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {

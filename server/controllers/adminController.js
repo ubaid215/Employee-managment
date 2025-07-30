@@ -840,7 +840,7 @@ exports.getAdminLeaveAnalytics = async (req, res, next) => {
 exports.approveLeave = async (req, res, next) => {
   try {
     const { id } = req.params; // Now getting ID from URL params
-    const { status, rejectionReason } = req.body; // Status comes from request body
+    const { status, rejectionReason } = req.body; 
 
     // Validate status
     if (!['approved', 'rejected'].includes(status)) {
@@ -1346,6 +1346,277 @@ exports.getAllDuties = async (req, res, next) => {
       }
     });
   } catch (error) {
+    next(error);
+  }
+};
+
+
+// UPDATE duty
+exports.updateDuty = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    console.log('🔧 [updateDuty] Updating duty ID:', id);
+    console.log('🔧 [updateDuty] Request body:', req.body);
+
+    // Validate duty ID format
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return next(new AppError('Invalid duty ID format', 400));
+    }
+
+    // Extract fields from request body
+    const { 
+      title, 
+      description, 
+      department, 
+      formSchema, 
+      priority,
+      deadline,
+      estimatedTime,
+      tags
+    } = req.body;
+
+    // Check if duty exists
+    const existingDuty = await Duty.findById(id);
+    if (!existingDuty) {
+      return next(new AppError('Duty not found', 404));
+    }
+
+    // If department is being changed, validate new department
+    if (department && department !== existingDuty.department.toString()) {
+      if (!mongoose.Types.ObjectId.isValid(department)) {
+        return next(new AppError('Invalid department ID format', 400));
+      }
+
+      const deptExists = await Department.findById(department);
+      if (!deptExists) {
+        return next(new AppError('Department not found', 404));
+      }
+
+      // Check for duplicate title in new department
+      const duplicateDuty = await Duty.findOne({ 
+        title: title || existingDuty.title,
+        department,
+        _id: { $ne: id }
+      });
+      if (duplicateDuty) {
+        return next(new AppError('A duty with this title already exists in the selected department', 400));
+      }
+    } else if (title && title !== existingDuty.title) {
+      // Check for duplicate title in same department
+      const duplicateDuty = await Duty.findOne({ 
+        title,
+        department: existingDuty.department,
+        _id: { $ne: id }
+      });
+      if (duplicateDuty) {
+        return next(new AppError('A duty with this title already exists in this department', 400));
+      }
+    }
+
+    // Validate deadline if provided
+    if (deadline && new Date(deadline) < new Date()) {
+      return next(new AppError('Deadline must be in the future', 400));
+    }
+
+    // Validate form schema structure if provided
+    if (formSchema && formSchema.fields) {
+      if (!Array.isArray(formSchema.fields)) {
+        return next(new AppError('Form schema fields must be an array', 400));
+      }
+
+      // Validate each field in the form schema
+      for (const field of formSchema.fields) {
+        if (!field.name || !field.type) {
+          return next(new AppError('Each form field must have a name and type', 400));
+        }
+
+        // Validate options for select/radio/checkbox
+        if (['select', 'radio', 'checkbox'].includes(field.type) && 
+            (!field.options || field.options.length === 0)) {
+          return next(new AppError(
+            `Field "${field.name}" of type "${field.type}" must have options`, 
+            400
+          ));
+        }
+      }
+    }
+
+    // Prepare update data
+    const updateData = {
+      updatedAt: new Date()
+    };
+
+    if (title) updateData.title = title;
+    if (description !== undefined) updateData.description = description;
+    if (priority) updateData.priority = priority;
+    if (deadline !== undefined) updateData.deadline = deadline;
+    if (estimatedTime !== undefined) updateData.estimatedTime = estimatedTime;
+    if (tags !== undefined) updateData.tags = tags;
+
+    // Handle form schema update
+    if (formSchema) {
+      updateData.formSchema = {
+        title: formSchema.title || existingDuty.formSchema?.title || `${title || existingDuty.title} Submission Form`,
+        description: formSchema.description || existingDuty.formSchema?.description || `Please complete the form for ${title || existingDuty.title}`,
+        fields: formSchema.fields || existingDuty.formSchema?.fields || [],
+        submitButtonText: formSchema.submitButtonText || existingDuty.formSchema?.submitButtonText || 'Submit',
+        allowMultipleSubmissions: formSchema.allowMultipleSubmissions !== undefined ? formSchema.allowMultipleSubmissions : existingDuty.formSchema?.allowMultipleSubmissions !== false,
+        submissionLimit: formSchema.submissionLimit !== undefined ? formSchema.submissionLimit : existingDuty.formSchema?.submissionLimit || null
+      };
+    }
+
+    // Handle department change
+    if (department && department !== existingDuty.department.toString()) {
+      // Remove duty from old department
+      await Department.findByIdAndUpdate(existingDuty.department, {
+        $pull: { duties: id }
+      });
+
+      // Add duty to new department
+      await Department.findByIdAndUpdate(department, {
+        $push: { duties: id }
+      });
+
+      updateData.department = department;
+    }
+
+    // Update the duty
+    const updatedDuty = await Duty.findByIdAndUpdate(
+      id,
+      updateData,
+      { 
+        new: true, 
+        runValidators: true 
+      }
+    ).populate('department', 'name').populate('createdBy', 'name');
+
+    console.log('✅ [updateDuty] Duty updated successfully');
+
+    // Emit real-time update
+    if (req.io) {
+      req.io.to('admin-room').emit('duty-updated', {
+        dutyId: id,
+        title: updatedDuty.title,
+        department: updatedDuty.department.name,
+        updatedBy: req.user.id
+      });
+
+      // Notify employees assigned to this duty
+      const assignedEmployees = await User.find({ 
+        duties: id,
+        role: 'employee'
+      }).select('_id');
+
+      assignedEmployees.forEach(employee => {
+        req.io.to(employee._id.toString()).emit('duty-updated', {
+          dutyId: id,
+          title: updatedDuty.title,
+          updatedAt: updatedDuty.updatedAt
+        });
+      });
+    }
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Duty updated successfully',
+      data: {
+        duty: updatedDuty
+      }
+    });
+
+  } catch (error) {
+    // Handle duplicate key error
+    if (error.code === 11000) {
+      const message = `A duty with this title already exists in the selected department`;
+      console.error('❌ [updateDuty] Duplicate duty:', message);
+      return next(new AppError(message, 400));
+    }
+
+    // Handle validation errors
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(val => val.message);
+      console.error('❌ [updateDuty] Validation Error:', messages);
+      return next(new AppError(`Validation failed: ${messages.join(', ')}`, 400));
+    }
+
+    console.error('❌ [updateDuty] Unexpected Error:', error);
+    next(error);
+  }
+};
+
+// DELETE duty
+exports.deleteDuty = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    console.log('🗑️ [deleteDuty] Deleting duty ID:', id);
+
+    // Validate duty ID format
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return next(new AppError('Invalid duty ID format', 400));
+    }
+
+    // Check if duty exists
+    const duty = await Duty.findById(id).populate('department', 'name');
+    if (!duty) {
+      return next(new AppError('Duty not found', 404));
+    }
+
+    // Check if employees are assigned to this duty
+    const assignedEmployees = await User.find({ 
+      duties: id,
+      role: 'employee'
+    }).select('name email');
+
+    if (assignedEmployees.length > 0) {
+      return next(new AppError(
+        `Cannot delete duty. ${assignedEmployees.length} employees are currently assigned to this duty. Please reassign them first.`, 
+        400
+      ));
+    }
+
+    // Check if there are any task submissions for this duty
+    const taskSubmissions = await TaskLog.countDocuments({ duty: id });
+    if (taskSubmissions > 0) {
+      return next(new AppError(
+        `Cannot delete duty. There are ${taskSubmissions} task submissions associated with this duty.`, 
+        400
+      ));
+    }
+
+    // Remove duty from department's duties array
+    await Department.findByIdAndUpdate(duty.department._id, {
+      $pull: { duties: id }
+    });
+
+    // Delete the duty
+    await Duty.findByIdAndDelete(id);
+
+    console.log('✅ [deleteDuty] Duty deleted successfully');
+
+    // Emit real-time update
+    if (req.io) {
+      req.io.to('admin-room').emit('duty-deleted', {
+        dutyId: id,
+        dutyTitle: duty.title,
+        departmentName: duty.department.name,
+        deletedBy: req.user.id
+      });
+    }
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Duty deleted successfully',
+      data: {
+        deletedDuty: {
+          id: duty._id,
+          title: duty.title,
+          department: duty.department.name
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ [deleteDuty] Unexpected Error:', error);
     next(error);
   }
 };

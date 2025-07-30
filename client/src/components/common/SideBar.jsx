@@ -13,7 +13,7 @@ const Sidebar = () => {
   const navItems = [
     { path: '/', icon: Home, label: 'Dashboard' },
     { path: '/profile', icon: User, label: 'Profile' },
-    { path: '/duties', icon: Briefcase, label: 'Duties' },
+    { path: '/task-submit', icon: Briefcase, label: 'Duty Task' },
     { path: '/leave', icon: Calendar, label: 'Leave' },
     { path: '/salary', icon: DollarSign, label: 'Salary' },
   ];

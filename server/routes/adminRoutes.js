@@ -13,6 +13,8 @@ const {
   createDuty,
   getDutyFormSchema,
   getAllDuties,
+   updateDuty,  
+  deleteDuty, 
   
   
   // Other existing functions
@@ -53,6 +55,10 @@ router.get('/departments/analytics/stats', getDepartmentAnalytics);
 router.route('/duties')
   .post(createDuty)
   .get(getAllDuties) 
+
+router.route('/duties/:id')
+  .patch(updateDuty) 
+  .delete(deleteDuty);
 
 router.get('/duties/:id/form-schema', getDutyFormSchema);
 router.post('/assign-duty', assignDepartmentAndDuties);

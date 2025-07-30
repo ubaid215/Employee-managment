@@ -24,8 +24,9 @@ const { protect } = require('../middlewares/authMiddleware');
 router.use(protect);
 
 // Profile and duties
-router.get('/me', getProfile);
-router.patch('/me', updateProfile);
+router.route('/me')
+  .get(getProfile)
+  .patch(updateProfile);
 
 // Profile image routes
 router.patch('/me/photo', uploadUserPhoto, resizeUserPhoto, updateProfileImage);

@@ -11,23 +11,63 @@ const Salary = () => {
   const { 
     salaryRecords = [], 
     fetchSalaryRecords, 
-    downloadSalaryPDF,
+    downloadAllSalaryPDF, // Assuming this function exists in context
     loading 
   } = useEmployee();
   
   const [filter, setFilter] = useState('all');
   const [sortConfig, setSortConfig] = useState({ key: 'paidOn', direction: 'desc' });
+  const [downloadingPDF, setDownloadingPDF] = useState(false);
 
   useEffect(() => {
     fetchSalaryRecords();
   }, [fetchSalaryRecords]);
 
-  const handleDownloadPDF = async (salaryId) => {
+  const handleDownloadAllPDF = async () => {
     try {
-      await downloadSalaryPDF(salaryId);
+      setDownloadingPDF(true);
+      // If downloadAllSalaryPDF doesn't exist, we can create a CSV export instead
+      if (downloadAllSalaryPDF) {
+        await downloadAllSalaryPDF(filteredRecords);
+      } else {
+        // Fallback: Generate CSV download
+        const csvData = generateCSV(filteredRecords);
+        downloadCSV(csvData, 'salary-records.csv');
+      }
     } catch (error) {
-      console.error('Failed to download PDF:', error);
+      console.error('Failed to download records:', error);
+    } finally {
+      setDownloadingPDF(false);
     }
+  };
+
+  const generateCSV = (records) => {
+    const headers = ['Month', 'Paid On', 'Amount', 'Advance Amount', 'Type', 'Status'];
+    const csvContent = [
+      headers.join(','),
+      ...records.map(record => [
+        record.month || 'N/A',
+        formatDate(record.paidOn),
+        record.amount || 0,
+        record.advanceAmount || 0,
+        record.type || 'full',
+        record.status || 'unknown'
+      ].join(','))
+    ].join('\n');
+    
+    return csvContent;
+  };
+
+  const downloadCSV = (csvContent, filename) => {
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const requestSort = (key) => {
@@ -119,6 +159,21 @@ const Salary = () => {
               <option value="pending">Pending</option>
               <option value="partial">Partial</option>
             </select>
+            
+            {filteredRecords?.length > 0 && (
+              <button
+                onClick={handleDownloadAllPDF}
+                disabled={downloadingPDF}
+                className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-2 rounded-xl flex items-center gap-2 text-sm font-medium shadow-sm hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {downloadingPDF ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <Download size={16} />
+                )}
+                {downloadingPDF ? 'Generating...' : 'Download All'}
+              </button>
+            )}
           </div>
         </div>
 
@@ -191,9 +246,6 @@ const Salary = () => {
                     <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                       Status
                     </th>
-                    <th scope="col" className="px-6 py-4 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      Actions
-                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-slate-200">
@@ -231,15 +283,6 @@ const Salary = () => {
                           {getStatusIcon(record.status)}
                           {record.status?.charAt(0).toUpperCase() + record.status?.slice(1)}
                         </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button
-                          onClick={() => handleDownloadPDF(record._id)}
-                          className="text-blue-600 hover:text-blue-800 flex items-center justify-end gap-2 w-full px-3 py-1.5 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
-                        >
-                          <Download size={16} />
-                          <span>PDF</span>
-                        </button>
                       </td>
                     </tr>
                   ))}
@@ -280,16 +323,6 @@ const Salary = () => {
                         Advance: ₨{record.advanceAmount.toLocaleString()}
                       </div>
                     )}
-                  </div>
-                  
-                  <div className="mt-3 flex justify-end">
-                    <button
-                      onClick={() => handleDownloadPDF(record._id)}
-                      className="text-blue-600 hover:text-blue-800 flex items-center gap-2 text-sm px-3 py-1.5 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
-                    >
-                      <Download size={16} />
-                      Download PDF
-                    </button>
                   </div>
                 </div>
               ))}

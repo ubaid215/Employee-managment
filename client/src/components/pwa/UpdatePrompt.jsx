@@ -6,34 +6,43 @@ export const UpdatePrompt = ({ updateFeatures = [] }) => {
   const [registration, setRegistration] = useState(null);
   const [isUpdating, setIsUpdating] = useState(false);
 
-  useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        setIsUpdateAvailable(true);
-      });
+ useEffect(() => {
+  if ('serviceWorker' in navigator) {
+    const controllerChangeHandler = () => {
+      setIsUpdateAvailable(true);
+    };
+    navigator.serviceWorker.addEventListener('controllerchange', controllerChangeHandler);
 
-      let registration;
-      navigator.serviceWorker.ready.then((reg) => {
-        registration = reg;
-        setRegistration(reg);
-        
-        reg.addEventListener('updatefound', () => {
-          const newWorker = reg.installing;
-          newWorker.addEventListener('statechange', () => {
-            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              setIsUpdateAvailable(true);
-            }
-          });
+    let reg;
+    let updateFoundHandler;
+
+    navigator.serviceWorker.ready.then((registration) => {
+      reg = registration;
+      setRegistration(registration);
+
+      updateFoundHandler = () => {
+        const newWorker = registration.installing;
+        if (!newWorker) return;
+
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            setIsUpdateAvailable(true);
+          }
         });
-      });
-
-      return () => {
-        if (registration) {
-          registration.removeEventListener('updatefound');
-        }
       };
-    }
-  }, []);
+
+      registration.addEventListener('updatefound', updateFoundHandler);
+    });
+
+    return () => {
+      navigator.serviceWorker.removeEventListener('controllerchange', controllerChangeHandler);
+      if (reg && updateFoundHandler) {
+        reg.removeEventListener('updatefound', updateFoundHandler);
+      }
+    };
+  }
+}, []);
+
 
   const handleUpdate = async () => {
     if (registration && registration.waiting) {

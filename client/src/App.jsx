@@ -5,7 +5,7 @@ import { AdminProvider } from './context/AdminContext';
 import Router from './router/Router';
 import { SocketProvider } from './context/SocketContext';
 import { Toaster } from 'react-hot-toast';
-import { OfflineIndicator, UpdatePrompt, SyncIndicator, InstallPrompt } from './components/pwa';
+import { OfflineIndicator, UpdatePrompt, InstallPrompt } from './components/pwa';
 
 function App() {
   return (
@@ -23,7 +23,7 @@ function App() {
                   'Bug fixes and security updates'
                 ]}
               />
-              <SyncIndicator />
+              
               <InstallPrompt />
               
               <Toaster 

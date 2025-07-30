@@ -7,6 +7,9 @@ const User = require('../models/User');
 const fs = require('fs').promises;
 const path = require('path');
 const puppeteer = require('puppeteer');
+const AppError = require('../utils/appError')
+const { uploadTaskFiles, processTaskFiles } = require('../middlewares/upload');
+
 
 // Update profile image
 exports.updateProfileImage = async (req, res, next) => {
@@ -142,72 +145,70 @@ exports.updateProfile = async (req, res, next) => {
 // Get employee's assigned duties
 exports.MyDuties = async (req, res) => {
   try {
-    console.log('🔍 MyDuties called for user:', req.user.id);
-    
-    // First, let's check if the user exists and has duties
-    const userCheck = await User.findById(req.user.id).select('duties');
-    console.log('👤 User found:', !!userCheck);
-    console.log('📋 User duties array:', userCheck?.duties);
-    
+    console.log('🔍 [MyDuties] Starting request processing', {
+      timestamp: new Date().toISOString(),
+      userId: req.user?.id,
+      method: req.method,
+      endpoint: req.originalUrl
+    });
+
+    const userCheck = await User.findById(req.user.id)
+      .select('duties department')
+      .lean();
+
     if (!userCheck) {
+      console.log('❌ [User Check] User not found');
       return res.status(404).json({ message: 'User not found' });
     }
-    
+
     if (!userCheck.duties || userCheck.duties.length === 0) {
-      console.log('⚠️ User has no duties assigned');
+      console.log('⚠️ [Duty Check] User has no duties assigned');
       return res.status(200).json([]);
     }
-    
-    // Now populate the duties
+
     const user = await User.findById(req.user.id)
       .populate({
         path: 'duties',
-        model: 'Duty', // Explicitly specify the model name
+        model: 'Duty',
         select: 'title description priority estimatedTime isActive tags formSchema department createdAt',
+        options: { lean: true },
         populate: {
           path: 'department',
-          model: 'Department', // Explicitly specify the model name
+          model: 'Department',
           select: 'name'
         }
-      });
-    
-    console.log('📊 Populated user duties:', user.duties?.length || 0);
-    
-    // Check if populate worked
+      })
+      .lean();
+
     if (!user.duties || user.duties.length === 0) {
-      console.log('❌ Populate failed - checking individual duties...');
-      
-      // Try to fetch duties individually for debugging
-      const Duty = require('../models/Duty'); // Adjust path as needed
-      const dutyIds = userCheck.duties;
-      const individualDuties = await Duty.find({ _id: { $in: dutyIds } });
-      console.log('🔍 Individual duty fetch result:', individualDuties.length);
-      
-      if (individualDuties.length > 0) {
-        console.log('✅ Duties exist in DB, populate issue confirmed');
-        // Return the individual duties as fallback
-        const fallbackDuties = individualDuties
-          .filter(duty => duty.isActive)
-          .map(duty => ({
-            _id: duty._id,
-            id: duty._id.toString(),
-            title: duty.title,
-            name: duty.title,
-            description: duty.description,
-            priority: duty.priority,
-            estimatedTime: duty.estimatedTime,
-            isActive: duty.isActive,
-            tags: duty.tags || [],
-            department: duty.department, // Will be ObjectId, not populated
-            fieldCount: duty.formSchema?.fields?.length || 0,
-            createdAt: duty.createdAt
-          }));
-        
-        return res.status(200).json(fallbackDuties);
-      }
+      console.log('❌ [Population] Populate returned empty - trying direct query');
+      const individualDuties = await Duty.find({
+        _id: { $in: userCheck.duties },
+        isActive: true
+      })
+      .populate('department', 'name')
+      .lean();
+
+      const fallbackDuties = individualDuties.map(duty => ({
+        _id: duty._id,
+        id: duty._id.toString(),
+        title: duty.title,
+        name: duty.title,
+        description: duty.description,
+        priority: duty.priority,
+        estimatedTime: duty.estimatedTime,
+        isActive: duty.isActive,
+        tags: duty.tags || [],
+        department: duty.department,
+        formSchema: duty.formSchema, // Include full formSchema
+        fieldCount: duty.formSchema?.fields?.length || 0,
+        createdAt: duty.createdAt
+      }));
+
+      console.log('✅ [Fallback] Returning directly fetched duties');
+      return res.status(200).json(fallbackDuties);
     }
-    
-    // Filter and transform duties if populate worked
+
     const activeDuties = (user.duties || [])
       .filter(duty => duty && duty.isActive)
       .map(duty => ({
@@ -221,154 +222,159 @@ exports.MyDuties = async (req, res) => {
         isActive: duty.isActive,
         tags: duty.tags || [],
         department: duty.department,
+        formSchema: duty.formSchema, // Include full formSchema
         fieldCount: duty.formSchema?.fields?.length || 0,
         createdAt: duty.createdAt
       }));
-    
-    console.log('✅ Returning duties:', activeDuties.length);
+
+    console.log('✅ [Success] Returning active duties:', {
+      count: activeDuties.length,
+      sample: activeDuties.length > 0 ? activeDuties[0] : null
+    });
+
     res.status(200).json(activeDuties);
-    
   } catch (error) {
-    console.error('❌ MyDuties error:', error);
-    console.error('Stack trace:', error.stack);
+    console.error('❌ [Error] MyDuties failed:', {
+      message: error.message,
+      stack: error.stack,
+      userId: req.user?.id,
+      timestamp: new Date().toISOString()
+    });
+
     res.status(500).json({ 
-      message: 'Server error', 
-      error: error.message,
-      userId: req.user?.id
+      status: 'error',
+      message: 'Failed to fetch duties',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      referenceId: `ERR-${Date.now()}`
     });
   }
 };
 
 // Submit task for a duty
 exports.submitTask = async (req, res, next) => {
-  try {
-    const { dutyId, formData, forceNew = false } = req.body;
-    const employeeId = req.user.id;
+  // Apply multer and file processing middleware
+  uploadTaskFiles(req, res, async (err) => {
+    if (err) return next(err);
+    
+    processTaskFiles(req, res, async (err) => {
+      if (err) return next(err);
 
-    // 1. Validate duty assignment
-    const user = await User.findById(employeeId).populate('department');
-    if (!user.duties.includes(dutyId)) {
-      return next(new AppError('You are not assigned this duty', 403));
-    }
-
-    // 2. Check for existing task today (unless forcing new)
-    let existingTask;
-    if (!forceNew) {
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
-      const todayEnd = new Date();
-      todayEnd.setHours(23, 59, 59, 999);
-
-      existingTask = await TaskLog.findOne({
-        employee: employeeId,
-        duty: dutyId,
-        createdAt: { $gte: todayStart, $lte: todayEnd },
-        allowUpdates: true
-      });
-    }
-
-    // 3. Handle update or create
-    let task;
-    if (existingTask && !forceNew) {
-      // Update existing task
-      existingTask.data = formData;
-      existingTask.submittedAt = new Date();
-      task = await existingTask.save();
-      
-      // Real-time update for specific admin channels
-      req.io.to(`admin-department-${user.department._id}`).emit('task-updated', {
-        type: 'TASK_UPDATED',
-        employeeId,
-        task: await TaskLog.findById(task._id)
-          .populate('employee duty department reviewedBy')
-      });
-
-    } else {
-      // Check if there's a reviewed task
-      const reviewedTask = await TaskLog.findOne({
-        employee: employeeId,
-        duty: dutyId,
-        allowUpdates: false,
-        createdAt: { 
-          $gte: new Date().setHours(0, 0, 0, 0),
-          $lte: new Date().setHours(23, 59, 59, 999)
+      try {
+        let { dutyId, formData, forceNew = false } = req.body;
+        
+        // Parse formData if sent as JSON string (e.g., from multipart form)
+        if (typeof formData === 'string') {
+          try {
+            formData = JSON.parse(formData);
+          } catch (e) {
+            return next(new AppError('Invalid formData format', 400));
+          }
         }
-      });
 
-      if (reviewedTask && !forceNew) {
-        // Notify admin that employee tried to modify reviewed task
-        req.io.to(`admin-department-${user.department._id}`).emit('task-modification-attempt', {
-          type: 'MODIFICATION_ATTEMPT',
+        const employeeId = req.user.id;
+
+        // Validate duty assignment
+        const user = await User.findById(employeeId).populate('department');
+        if (!user.duties.includes(dutyId)) {
+          return next(new AppError('You are not assigned this duty', 403));
+        }
+
+        // Fetch duty to validate formSchema
+        const duty = await Duty.findById(dutyId);
+        if (!duty) {
+          return next(new AppError('Duty not found', 404));
+        }
+
+        // Validate form data
+        const validationResult = duty.validateSubmission(formData);
+        if (!validationResult.isValid) {
+          return next(new AppError(`Invalid form data: ${validationResult.errors.join(', ')}`, 400));
+        }
+
+        // Check for existing task
+        let task;
+        if (!forceNew) {
+          const todayStart = new Date();
+          todayStart.setHours(0, 0, 0, 0);
+          const todayEnd = new Date();
+          todayEnd.setHours(23, 59, 59, 999);
+
+          task = await TaskLog.findOne({
+            employee: employeeId,
+            duty: dutyId,
+            createdAt: { $gte: todayStart, $lte: todayEnd },
+            allowUpdates: true
+          });
+        }
+
+        if (task && !forceNew) {
+          task.data = formData;
+          task.submittedAt = new Date();
+          task = await task.save();
+        } else {
+          const reviewedTask = await TaskLog.findOne({
+            employee: employeeId,
+            duty: dutyId,
+            allowUpdates: false,
+            createdAt: { $gte: new Date().setHours(0, 0, 0, 0), $lte: new Date().setHours(23, 59, 59, 999) }
+          });
+
+          if (reviewedTask && !forceNew) {
+            req.io.to(`admin-department-${user.department._id}`).emit('task-modification-attempt', {
+              type: 'MODIFICATION_ATTEMPT',
+              employeeId,
+              taskId: reviewedTask._id,
+              attemptedAt: new Date()
+            });
+            return res.status(400).json({
+              status: 'fail',
+              message: 'This task was already reviewed. Add "forceNew": true to create new entry.',
+              reviewedTask
+            });
+          }
+
+          task = await TaskLog.create({
+            employee: employeeId,
+            duty: dutyId,
+            department: user.department._id,
+            data: formData,
+            submittedAt: new Date(),
+            allowUpdates: true
+          });
+        }
+
+        const populatedTask = await TaskLog.findById(task._id)
+          .populate('employee duty department reviewedBy');
+
+        req.io.to(`admin-department-${user.department._id}`).emit(task ? 'task-updated' : 'new-task', {
+          type: task ? 'TASK_UPDATED' : 'NEW_TASK',
           employeeId,
-          taskId: reviewedTask._id,
-          attemptedAt: new Date()
+          task: populatedTask
         });
 
-        return res.status(400).json({
-          status: 'fail',
-          message: 'This task was already reviewed. Add "forceNew": true to create new entry.',
-          reviewedTask: reviewedTask
+        req.io.to(`employee-${employeeId}`).emit('task-submitted', {
+          type: 'SUBMISSION_CONFIRMED',
+          taskId: task._id
         });
+
+        return res.status(task ? 200 : 201).json({
+          status: 'success',
+          message: task ? 'Task updated successfully' : 'Task submitted successfully',
+          task: populatedTask
+        });
+      } catch (error) {
+        next(error);
       }
-
-      // Create new task
-      task = await TaskLog.create({
-        employee: employeeId,
-        duty: dutyId,
-        department: user.department._id,
-        data: formData,
-        submittedAt: new Date(),
-        allowUpdates: true
-      });
-
-      // Real-time notification to relevant admins
-      req.io.to(`admin-department-${user.department._id}`).emit('new-duty', {
-        type: 'NEW_TASK',
-        employeeId,
-        task: await TaskLog.findById(task._id)
-          .populate('employee duty department')
-      });
-
-      // Notify employee's own socket room
-      req.io.to(`employee-${employeeId}`).emit('task-submitted', {
-        type: 'SUBMISSION_CONFIRMED',
-        taskId: task._id
-      });
-    }
-
-    // Prepare response data
-    const populatedTask = await TaskLog.findById(task._id)
-      .populate('employee duty department reviewedBy');
-
-    return res.status(existingTask ? 200 : 201).json({
-      status: 'success',
-      message: existingTask 
-        ? 'Task updated successfully' 
-        : forceNew 
-          ? 'New task entry created' 
-          : 'Task submitted successfully',
-      task: populatedTask,
-      socketEvent: existingTask ? 'task-updated' : 'new-duty'
     });
-
-  } catch (error) {
-    // Notify admins of submission errors
-    if (req.user?.department) {
-      req.io.to(`admin-department-${req.user.department._id}`).emit('task-error', {
-        type: 'SUBMISSION_ERROR',
-        employeeId: req.user._id,
-        error: error.message,
-        timestamp: new Date()
-      });
-    }
-    next(error);
-  }
+  });
 };
 
 // Apply for leave
 exports.applyLeave = async (req, res, next) => {
   try {
     const { reason, fromDate, toDate } = req.body;
+    console.log('Getting leave for user:', req.body);
+
     
     // Validate dates
     if (new Date(fromDate) >= new Date(toDate)) {
@@ -413,6 +419,7 @@ exports.applyLeave = async (req, res, next) => {
     });
     
   } catch (error) {
+    console.log(error)
     next(error);
   }
 };

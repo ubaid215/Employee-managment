@@ -137,30 +137,33 @@ const employeeService = {
   
   // Profile Image
   updateProfileImage: (imageFile) => {
-  const formData = new FormData();
-  formData.append('profileImage', imageFile); 
-  return queuedRequest(() => api.patch('/employee/me/photo', formData, {
-    headers: { 
-      'Content-Type': 'multipart/form-data',
-    },
-  }));
-},
+    const formData = new FormData();
+    formData.append('profileImage', imageFile); 
+    return queuedRequest(() => api.patch('/employee/me/photo', formData, {
+      headers: { 
+        'Content-Type': 'multipart/form-data',
+      },
+    }));
+  },
   deleteProfileImage: () => queuedRequest(() => api.delete('/employee/me/photo')),
 
   // Tasks
-  submitTask: (dutyId, formData) => 
-    queuedRequest(() => api.post('/employee/tasks', { dutyId, ...formData })),
-  updateTask: (taskId, formData) => 
-    queuedRequest(() => api.put(`/employee/tasks/${taskId}`, formData)),
+  submitTask: (dutyId, formData, forceNew = false) => 
+    queuedRequest(() => api.post('/employee/submit-task', { dutyId, formData, forceNew })),
+  
+  // Note: Backend handles both create/update via submitTask
+  updateTask: (dutyId, formData) => 
+    queuedRequest(() => api.post('/employee/submit-task', { dutyId, formData })),
 
   // Leaves
   applyLeave: (leaveData) => queuedRequest(() => api.post('/employee/apply-leave', leaveData)),
   getMyLeaves: () => queuedRequest(() => api.get('/employee/my-leaves')),
-  getLeaveAnalytics: () => queuedRequest(() => api.get('/employee/my-leaves/analytics')),
+  getLeaveAnalytics: (year) => queuedRequest(() => 
+    api.get('/employee/my-leaves/analytics', { params: { year } })),
 
   // Salary
   getSalaryRecords: () => queuedRequest(() => api.get('/employee/salary')),
-  downloadSalaryPDF: (salaryId) => 
+  downloadSalaryPDF: (salaryId = '') => 
     queuedRequest(() => api.get(`/employee/salary/pdf/${salaryId}`, { responseType: 'blob' })),
 
   // Departments & Duties
@@ -197,6 +200,10 @@ const adminService = {
     queuedRequest(() => api.get('/admin/duties', { params })),
   createDuty: (data) => 
     queuedRequest(() => api.post('/admin/duties', data)),
+  updateDuty: (id, data) =>                                    
+    queuedRequest(() => api.patch(`/admin/duties/${id}`, data)),
+  deleteDuty: (id) =>                                         
+    queuedRequest(() => api.delete(`/admin/duties/${id}`)),
   getDutyFormSchema: (id) => 
     queuedRequest(() => api.get(`/admin/duties/${id}/form-schema`)),
   assignDepartmentAndDuties: (data) => 
@@ -229,6 +236,8 @@ const adminService = {
     queuedRequest(() => api.get(`/admin/leaves/${id}`)),
   updateLeaveStatus: (id, decision) => 
     queuedRequest(() => api.patch(`/admin/leaves/${id}`, decision)),
+  approveLeave: (id, decision) => 
+  queuedRequest(() => api.patch(`/admin/leaves/${id}`, decision)),
   getLeaveAnalytics: () => 
     queuedRequest(() => api.get('/admin/leaves/analytics')),
   getAdvancedLeaveAnalytics: (params = {}) => 
