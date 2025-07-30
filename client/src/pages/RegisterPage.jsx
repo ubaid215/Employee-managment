@@ -1,8 +1,13 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Eye, EyeOff, Mail, Lock, User, Phone, CreditCard, AlertCircle, Loader2 } from 'lucide-react';
+import {
+  Eye, EyeOff, Mail, Lock, User, Phone, CreditCard, AlertCircle, Loader2
+} from 'lucide-react';
 
 const RegisterPage = () => {
+  const navigate = useNavigate();
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -13,7 +18,7 @@ const RegisterPage = () => {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [validationErrors, setValidationErrors] = useState({});
-  
+
   const { register, isAuthenticating, error } = useAuth();
 
   const handleInputChange = (e) => {
@@ -22,8 +27,7 @@ const RegisterPage = () => {
       ...prev,
       [name]: value
     }));
-    
-    // Clear validation error when user types
+
     if (validationErrors[name]) {
       setValidationErrors(prev => ({
         ...prev,
@@ -79,20 +83,37 @@ const RegisterPage = () => {
     return isValid;
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (!validateForm()) return;
+ const handleSubmit = async (e) => {
+  e.preventDefault();
 
-    try {
-      await register(formData);
-      // Show success message for pending approval
-      alert('Registration successful! Your account is pending admin approval. You will be notified once approved.');
-    } catch (err) {
-      // Error is already handled by the auth context
-      console.error('Registration error:', err);
+  if (!validateForm()) return;
+
+  try {
+    await register({
+      name: formData.name,
+      email: formData.email,
+      password: formData.password,
+      passwordConfirm: formData.passwordConfirm,
+      phone: formData.phone,
+      cnic: formData.cnic
+    });
+    
+    alert('Registration successful! Your account is pending admin approval.');
+    navigate('/login');
+  } catch (err) {
+    console.error('Registration error:', err);
+    
+    // Show error message to user
+    if (err.message.includes('Email already exists')) {
+      setValidationErrors(prev => ({
+        ...prev,
+        email: 'This email is already registered'
+      }));
+    } else {
+      alert(err.message || 'Registration failed. Please try again.');
     }
-  };
+  }
+};
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -268,7 +289,7 @@ const RegisterPage = () => {
               )}
             </div>
 
-            <button
+           <button
               type="button"
               onClick={handleSubmit}
               disabled={isAuthenticating}
@@ -285,7 +306,10 @@ const RegisterPage = () => {
 
           <div className="mt-6 text-center text-sm text-gray-600">
             Already have an account?{' '}
-            <button className="font-medium text-blue-600 hover:text-blue-500">
+            <button
+              onClick={() => navigate('/login')}
+              className="font-medium text-blue-600 hover:text-blue-500"
+            >
               Sign in
             </button>
           </div>

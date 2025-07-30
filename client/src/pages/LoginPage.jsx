@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 
-import { Lock, Mail, AlertCircle, Loader2 } from 'lucide-react';
+import { Lock, Mail, AlertCircle, Loader2, EyeOff, Eye } from 'lucide-react';
 
 const LoginPage = () => {
   const { login, isAuthenticating, error, isAdmin, isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
+   const [showPassword, setShowPassword] = useState(false);
   const location = useLocation();
   
   const [formData, setFormData] = useState({ 
@@ -48,7 +49,7 @@ const LoginPage = () => {
     }
   };
 
-  // Handle redirection after successful authentication
+
  
 useEffect(() => {
   if (isAuthenticated() && user && !isAuthenticating) {
@@ -134,27 +135,40 @@ useEffect(() => {
               </div>
             </div>
 
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                Password
-              </label>
-              <div className="mt-1 relative rounded-md shadow-sm">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-400" />
-                </div>
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  value={formData.password}
-                  onChange={handleChange}
-                  className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-lg py-2.5 border placeholder-gray-400 transition-all duration-200"
-                  placeholder="••••••••"
-                />
-              </div>
-            </div>
+             <div>
+        <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+          Password
+        </label>
+        <div className="mt-1 relative rounded-md shadow-sm">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <Lock className="h-5 w-5 text-gray-400" />
+          </div>
+          <input
+            id="password"
+            name="password"
+            type={showPassword ? "text" : "password"} // Toggle input type
+            autoComplete="current-password"
+            required
+            value={formData.password}
+            onChange={handleChange}
+            className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 pr-10 sm:text-sm border-gray-300 rounded-lg py-2.5 border placeholder-gray-400 transition-all duration-200"
+            placeholder="••••••••"
+          />
+          {/* Add eye toggle button */}
+          <button
+            type="button"
+            className="absolute inset-y-0 right-0 pr-3 flex items-center"
+            onClick={() => setShowPassword(!showPassword)}
+            aria-label={showPassword ? "Hide password" : "Show password"}
+          >
+            {showPassword ? (
+              <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-500" />
+            ) : (
+              <Eye className="h-5 w-5 text-gray-400 hover:text-gray-500" />
+            )}
+          </button>
+        </div>
+      </div>
 
             <div className="flex items-center justify-between">
               <div className="flex items-center">

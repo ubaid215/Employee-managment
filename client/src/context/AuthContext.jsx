@@ -81,6 +81,26 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const register = async (userData) => {
+    setIsAuthenticating(true);
+    try {
+      const { data } = await authService.register(userData);
+      
+      // Store the token if you want to automatically log in after registration
+      if (data.token) {
+        localStorage.setItem("token", data.token);
+        await fetchProfile();
+      }
+      
+      return data;
+    } catch (err) {
+      const message = handleAuthError(err);
+      throw new Error(message);
+    } finally {
+      setIsAuthenticating(false);
+    }
+  };
+
   // Update profile with image handling
   const updateProfileImage = async (profileData, profileImage) => {
   setIsAuthenticating(true);
@@ -188,6 +208,7 @@ export const AuthProvider = ({ children }) => {
     error,
     isAuthenticating,
     login,
+    register,
     logout,
     updateProfileImage,
     updatePassword,

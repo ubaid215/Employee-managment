@@ -44,9 +44,9 @@ const EmployeeDetails = () => {
 
       try {
         setFetchError(null);
-        console.log('Fetching employee with ID:', id);
+        // console.log('Fetching employee with ID:', id);
         const data = await getEmployeeDetails(id);
-        console.log('Employee data received:', data);
+        // console.log('Employee data received:', data);
         setEmployee(data);
         setStatus(data?.status || '');
       } catch (err) {
