@@ -29,9 +29,9 @@ const createAdmin = async () => {
     } else {
       const admin = await User.create({
         name: 'Admin',
-        email: process.env.ADMIN_EMAIL || 'admin@example.com',
-        password: process.env.ADMIN_PASSWORD || 'admin123',
-        passwordConfirm: process.env.ADMIN_PASSWORD || 'admin123',
+        email: process.env.ADMIN_EMAIL || 'khanqahsaifia@khadmeen.com',
+        password: process.env.ADMIN_PASSWORD || 'Khandmeen@786',
+        passwordConfirm: process.env.ADMIN_PASSWORD || 'Khandmeen@786',
         role: 'admin',
         status: 'active',
       });
